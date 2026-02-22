@@ -1,16 +1,22 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation, Link } from "react-router-dom";
 
 const AdminLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const token = localStorage.getItem("adminToken");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!token) {
       navigate("/admin/login");
     }
   }, [token, location, navigate]);
+
+  // Close sidebar on route change (mobile UX)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem("adminToken");
@@ -22,7 +28,15 @@ const AdminLayout: React.FC = () => {
 
   return (
     <div className="admin-layout">
-      <aside className="admin-sidebar">
+      {/* Mobile overlay backdrop */}
+      {sidebarOpen && (
+        <div
+          className="admin-sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`admin-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="admin-brand">
           <h2>🌾 FarmProfit Admin</h2>
         </div>
@@ -103,6 +117,13 @@ const AdminLayout: React.FC = () => {
 
       <main className="admin-main">
         <header className="admin-header">
+          <button
+            className="admin-menu-toggle"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle sidebar"
+          >
+            {sidebarOpen ? "✕" : "☰"}
+          </button>
           <h3>Welcome, Admin</h3>
         </header>
         <div className="admin-content">
