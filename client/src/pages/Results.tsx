@@ -425,10 +425,10 @@ const Results: React.FC = () => {
               <YAxis
                 stroke="#aaa"
                 fontSize={11}
-                tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v: any) => `₹${(Number(v) / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                formatter={(v: number) => formatINR(v)}
+                formatter={(v: any) => formatINR(Number(v) || 0)}
                 contentStyle={{
                   background: "#1a1a2e",
                   border: "1px solid rgba(255,255,255,0.1)",
@@ -455,7 +455,7 @@ const Results: React.FC = () => {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                label={({ name, percent }: { name: string; percent: number }) =>
+                label={({ name, percent }: any) =>
                   `${name} ${(percent * 100).toFixed(0)}%`
                 }
                 labelLine={false}
@@ -466,7 +466,7 @@ const Results: React.FC = () => {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(v: number) => formatINR(v)}
+                formatter={(v: any) => formatINR(Number(v) || 0)}
                 contentStyle={{
                   background: "#1a1a2e",
                   border: "1px solid rgba(255,255,255,0.1)",
@@ -627,14 +627,14 @@ const Results: React.FC = () => {
                 <YAxis
                   stroke="#aaa"
                   fontSize={11}
-                  tickFormatter={(v: number) => `₹${v}`}
+                  tickFormatter={(v: any) => `₹${v}`}
                 />
                 <Tooltip
                   contentStyle={{
                     background: "#1a1a2e",
                     border: "1px solid rgba(255,255,255,0.1)",
                   }}
-                  formatter={(v: number) => `₹${v}`}
+                  formatter={(v: any) => `₹${v}`}
                 />
                 <Line
                   type="monotone"
@@ -661,14 +661,14 @@ const Results: React.FC = () => {
               <YAxis
                 stroke="#aaa"
                 fontSize={11}
-                tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}k`}
+                tickFormatter={(v: any) => `₹${(Number(v) / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={{
                   background: "#1a1a2e",
                   border: "1px solid rgba(255,255,255,0.1)",
                 }}
-                formatter={(v: number) => formatINR(v)}
+                formatter={(v: any) => formatINR(Number(v) || 0)}
               />
               <Area
                 type="monotone"

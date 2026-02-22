@@ -564,7 +564,7 @@ const Sensitivity: React.FC = () => {
                         background: "#1a1a2e",
                         border: "1px solid rgba(255,255,255,0.1)",
                       }}
-                      formatter={(v: number) => formatINR(v)}
+                      formatter={(v: any) => formatINR(Number(v) || 0)}
                     />
                     <Legend />
                     <Bar dataKey="Base" fill="#888" radius={[4, 4, 0, 0]} />
