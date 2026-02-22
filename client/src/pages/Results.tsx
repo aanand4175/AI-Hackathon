@@ -753,43 +753,47 @@ const Results: React.FC = () => {
         {pestPredictions.length > 0 && (
           <div className="result-card">
             <h3>🐛 Disease & Pest Predictions</h3>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Pest/Disease</th>
-                  <th>Probability</th>
-                  <th>Severity</th>
-                  <th>Season</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pestPredictions.map((p, i) => (
-                  <tr key={i}>
-                    <td>{p.name}</td>
-                    <td>
-                      <span className="risk-bar">
-                        <span
-                          className="risk-fill"
-                          style={{
-                            width: `${p.probability}%`,
-                            background: getRiskColor(p.probability),
-                          }}
-                        ></span>
-                        <span className="risk-text">{p.probability}%</span>
-                      </span>
-                    </td>
-                    <td>
-                      <span
-                        className={`verdict-badge ${p.severity === "Low" ? "badge-green" : p.severity === "High" ? "badge-red" : "badge-yellow"}`}
-                      >
-                        {p.severity}
-                      </span>
-                    </td>
-                    <td>{p.season}</td>
+            <div
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}
+            >
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Pest/Disease</th>
+                    <th>Probability</th>
+                    <th>Severity</th>
+                    <th>Season</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pestPredictions.map((p, i) => (
+                    <tr key={i}>
+                      <td>{p.name}</td>
+                      <td>
+                        <span className="risk-bar">
+                          <span
+                            className="risk-fill"
+                            style={{
+                              width: `${p.probability}%`,
+                              background: getRiskColor(p.probability),
+                            }}
+                          ></span>
+                          <span className="risk-text">{p.probability}%</span>
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={`verdict-badge ${p.severity === "Low" ? "badge-green" : p.severity === "High" ? "badge-red" : "badge-yellow"}`}
+                        >
+                          {p.severity}
+                        </span>
+                      </td>
+                      <td>{p.season}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
