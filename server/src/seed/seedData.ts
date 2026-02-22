@@ -188,6 +188,150 @@ const crops = [
       misc: 350,
     },
   },
+  {
+    name: "Strawberry",
+    category: "Horticulture",
+    baseYieldPerAcre: 50, // quintals (approx 5 tonnes)
+    growthDurationDays: 150,
+    waterRequirement: "High",
+    mspPerQuintal: 15000, // no official MSP, using proxy floor price
+    marketPricePerQuintal: 25000,
+    defaultCosts: {
+      seeds: 40000, // expensive plants
+      fertilizer: 15000,
+      pesticide: 10000,
+      labor: 30000,
+      irrigation: 10000,
+      transport: 15000,
+      misc: 20000, // mulching, drip setup
+    },
+  },
+  {
+    name: "Tomato",
+    category: "Horticulture",
+    baseYieldPerAcre: 150, // quintals (15 tonnes)
+    growthDurationDays: 120,
+    waterRequirement: "Medium",
+    mspPerQuintal: 800, // proxy floor price
+    marketPricePerQuintal: 1500, // highly volatile
+    defaultCosts: {
+      seeds: 5000,
+      fertilizer: 8000,
+      pesticide: 6000,
+      labor: 15000,
+      irrigation: 5000,
+      transport: 8000,
+      misc: 5000, // staking
+    },
+  },
+  {
+    name: "Onion",
+    category: "Horticulture",
+    baseYieldPerAcre: 100, // quintals
+    growthDurationDays: 130,
+    waterRequirement: "Medium",
+    mspPerQuintal: 1200, // proxy floor price
+    marketPricePerQuintal: 2000, // volatile
+    defaultCosts: {
+      seeds: 4000,
+      fertilizer: 7000,
+      pesticide: 4000,
+      labor: 12000,
+      irrigation: 4000,
+      transport: 5000,
+      misc: 3000,
+    },
+  },
+  {
+    name: "Red Chilli",
+    category: "Spice",
+    baseYieldPerAcre: 20, // dry quintals
+    growthDurationDays: 160,
+    waterRequirement: "Medium",
+    mspPerQuintal: 8000, // proxy floor
+    marketPricePerQuintal: 12000,
+    defaultCosts: {
+      seeds: 3000,
+      fertilizer: 6000,
+      pesticide: 8000,
+      labor: 15000, // picking is labor intensive
+      irrigation: 4000,
+      transport: 3000,
+      misc: 2000,
+    },
+  },
+  {
+    name: "Turmeric",
+    category: "Spice",
+    baseYieldPerAcre: 80, // fresh rhizomes quintals
+    growthDurationDays: 240,
+    waterRequirement: "High",
+    mspPerQuintal: 4000,
+    marketPricePerQuintal: 6000,
+    defaultCosts: {
+      seeds: 12000, // seed rhizomes
+      fertilizer: 8000,
+      pesticide: 3000,
+      labor: 20000, // digging
+      irrigation: 8000,
+      transport: 4000,
+      misc: 5000, // boiling/drying
+    },
+  },
+  {
+    name: "Coriander",
+    category: "Spice",
+    baseYieldPerAcre: 5, // seeds quintals
+    growthDurationDays: 110,
+    waterRequirement: "Low",
+    mspPerQuintal: 6000,
+    marketPricePerQuintal: 8000,
+    defaultCosts: {
+      seeds: 1500,
+      fertilizer: 2000,
+      pesticide: 1000,
+      labor: 5000,
+      irrigation: 1500,
+      transport: 1000,
+      misc: 1000,
+    },
+  },
+  {
+    name: "Ashwagandha",
+    category: "Herbal",
+    baseYieldPerAcre: 4, // dry roots quintals
+    growthDurationDays: 170,
+    waterRequirement: "Low",
+    mspPerQuintal: 15000,
+    marketPricePerQuintal: 22000,
+    defaultCosts: {
+      seeds: 1000,
+      fertilizer: 2000,
+      pesticide: 1000,
+      labor: 10000, // digging roots
+      irrigation: 2000,
+      transport: 2000,
+      misc: 2000,
+    },
+  },
+  {
+    name: "Tulsi (Holy Basil)",
+    category: "Herbal",
+    baseYieldPerAcre: 15, // dry leaves quintals
+    growthDurationDays: 90,
+    waterRequirement: "Medium",
+    mspPerQuintal: 4000,
+    marketPricePerQuintal: 6000,
+    defaultCosts: {
+      seeds: 500,
+      fertilizer: 1500,
+      pesticide: 1000,
+      labor: 6000, // harvesting leaves
+      irrigation: 2000,
+      transport: 1500,
+      misc: 1000,
+    },
+  },
 ];
 
 const regions = [

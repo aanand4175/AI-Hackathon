@@ -17,7 +17,15 @@ export interface ICropDefaultCosts {
 
 export interface ICrop extends Document {
   name: string;
-  category: "Cereal" | "Cash Crop" | "Oilseed" | "Pulse" | "Millet";
+  category:
+    | "Cereal"
+    | "Cash Crop"
+    | "Oilseed"
+    | "Pulse"
+    | "Millet"
+    | "Horticulture"
+    | "Spice"
+    | "Herbal";
   baseYieldPerAcre: number;
   growthDurationDays: number;
   waterRequirement: "Low" | "Medium" | "High";
