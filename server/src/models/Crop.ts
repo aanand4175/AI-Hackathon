@@ -23,7 +23,7 @@ const cropSchema = new Schema<ICrop>(
       required: true,
     },
     baseYieldPerAcre: {
-      type: Number, // in quintals
+      type: Number,
       required: true,
     },
     growthDurationDays: {
@@ -35,16 +35,33 @@ const cropSchema = new Schema<ICrop>(
       enum: ["Low", "Medium", "High"],
       required: true,
     },
+    waterRequirementMM: {
+      type: Number,
+      default: 500,
+    },
     mspPerQuintal: {
-      type: Number, // MSP in INR
+      type: Number,
       required: true,
     },
     marketPricePerQuintal: {
-      type: Number, // Avg market price in INR
+      type: Number,
       required: true,
     },
+    mandiPrice: {
+      type: Number,
+      default: 0,
+    },
+    onlinePrice: {
+      type: Number,
+      default: 0,
+    },
+    marketDemand: {
+      type: String,
+      enum: ["High", "Medium", "Low"],
+      default: "Medium",
+    },
     defaultCosts: {
-      seeds: { type: Number, default: 0 }, // per acre in INR
+      seeds: { type: Number, default: 0 },
       fertilizer: { type: Number, default: 0 },
       pesticide: { type: Number, default: 0 },
       labor: { type: Number, default: 0 },
@@ -52,6 +69,37 @@ const cropSchema = new Schema<ICrop>(
       transport: { type: Number, default: 0 },
       misc: { type: Number, default: 0 },
     },
+    mspHistory: [
+      {
+        year: Number,
+        msp: Number,
+      },
+    ],
+    pestRules: [
+      {
+        name: String,
+        probability: Number,
+        severity: { type: String, enum: ["Low", "Medium", "High"] },
+        season: String,
+        description: String,
+      },
+    ],
+    cropRotation: [
+      {
+        nextCrop: String,
+        benefit: String,
+      },
+    ],
+    soilSuitability: {
+      type: Map,
+      of: Number,
+      default: {},
+    },
+    temperatureRange: {
+      min: { type: Number, default: 15 },
+      max: { type: Number, default: 40 },
+    },
+    costTips: [String],
   },
   { timestamps: true },
 );

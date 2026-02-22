@@ -1,9 +1,15 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCrops, getRegions, getEstimate } from "../services/api";
-import type { Crop, Region, FormData, IrrigationType } from "../types";
+import { useTranslation } from "react-i18next";
+import { fetchCrops, fetchRegions, submitEstimate } from "../services/api";
+import type { Crop, Region, FormData } from "../types";
 
-const IRRIGATION_TYPES: IrrigationType[] = [
+interface IrrigationOption {
+  value: string;
+  label: string;
+}
+
+const IRRIGATION_TYPES: IrrigationOption[] = [
   { value: "canal", label: "Canal Irrigation" },
   { value: "tubewell", label: "Tubewell" },
   { value: "borewell", label: "Borewell" },
@@ -13,8 +19,16 @@ const IRRIGATION_TYPES: IrrigationType[] = [
   { value: "flood", label: "Flood Irrigation" },
 ];
 
+const PRICE_SOURCES = [
+  { value: "msp", label: "MSP (Govt)" },
+  { value: "market", label: "Market Price" },
+  { value: "mandi", label: "Local Mandi" },
+  { value: "online", label: "Online Market" },
+];
+
 const Estimator: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [step, setStep] = useState<number>(1);
   const [crops, setCrops] = useState<Crop[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -25,26 +39,26 @@ const Estimator: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     cropId: "",
     regionId: "",
-    landSize: "",
+    landSize: 0,
     irrigationType: "canal",
+    priceSource: "market",
     costs: {
-      seeds: "",
-      fertilizer: "",
-      pesticide: "",
-      labor: "",
-      irrigation: "",
-      transport: "",
-      misc: "",
+      seeds: 0,
+      fertilizer: 0,
+      pesticide: 0,
+      labor: 0,
+      irrigation: 0,
+      transport: 0,
+      misc: 0,
     },
   });
 
-  // Fetch crops & regions on mount
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       try {
         const [cropsRes, regionsRes] = await Promise.all([
-          getCrops(),
-          getRegions(),
+          fetchCrops(),
+          fetchRegions(),
         ]);
         setCrops(cropsRes.data.data || []);
         setRegions(regionsRes.data.data || []);
@@ -54,63 +68,58 @@ const Estimator: React.FC = () => {
         setLoading(false);
       }
     };
-    fetchData();
+    load();
   }, []);
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "landSize" ? Number(value) : value,
+    }));
   };
 
   const handleCostChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      costs: { ...prev.costs, [name]: value },
+      costs: { ...prev.costs, [name]: Number(value) || 0 },
     }));
   };
 
   const selectedCrop = crops.find((c) => c._id === formData.cropId);
-
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 3));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
-  const canProceedStep1: boolean = !!formData.cropId && !!formData.regionId;
-  const canProceedStep2: boolean =
-    !!formData.landSize &&
-    parseFloat(formData.landSize) > 0 &&
-    !!formData.irrigationType;
+  const canProceedStep1 = !!formData.cropId && !!formData.regionId;
+  const canProceedStep2 = formData.landSize > 0 && !!formData.irrigationType;
 
   const handleSubmit = async () => {
     setSubmitting(true);
     setError("");
     try {
-      // Convert cost strings to numbers, filter out empty values
       const costs: Record<string, number> = {};
       for (const [key, val] of Object.entries(formData.costs)) {
-        if (val !== "" && !isNaN(Number(val))) {
-          costs[key] = parseFloat(String(val));
-        }
+        if (val && val > 0) costs[key] = val;
       }
 
       const payload = {
         cropId: formData.cropId,
         regionId: formData.regionId,
-        landSize: parseFloat(formData.landSize),
+        landSize: formData.landSize,
         irrigationType: formData.irrigationType,
+        priceSource: formData.priceSource,
         costs,
       };
 
-      const response = await getEstimate(payload);
-      // Navigate to results page with the estimate data
-      navigate("/results", { state: { estimate: response.data.data } });
+      const response = await submitEstimate(payload as any);
+      navigate("/results", { state: { result: response.data.data } });
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } } };
       setError(
-        axiosErr.response?.data?.message ||
-          "Failed to calculate estimate. Please try again.",
+        axiosErr.response?.data?.message || "Failed to calculate estimate.",
       );
     } finally {
       setSubmitting(false);
@@ -145,7 +154,7 @@ const Estimator: React.FC = () => {
   return (
     <main className="estimator-page">
       <div className="estimator-header">
-        <h1>Crop Profitability Estimator</h1>
+        <h1>{t("estimator.title")}</h1>
         <p>
           Fill in your farming details to get a comprehensive profit estimate.
         </p>
@@ -157,23 +166,23 @@ const Estimator: React.FC = () => {
           className={`step ${step >= 1 ? "active" : ""} ${step > 1 ? "completed" : ""}`}
         >
           <div className="step-number">{step > 1 ? "✓" : "1"}</div>
-          <span className="step-label">Crop & Region</span>
+          <span className="step-label">{t("estimator.step1")}</span>
         </div>
         <div className={`step-line ${step > 1 ? "active" : ""}`}></div>
         <div
           className={`step ${step >= 2 ? "active" : ""} ${step > 2 ? "completed" : ""}`}
         >
           <div className="step-number">{step > 2 ? "✓" : "2"}</div>
-          <span className="step-label">Land & Irrigation</span>
+          <span className="step-label">{t("estimator.step2")}</span>
         </div>
         <div className={`step-line ${step > 2 ? "active" : ""}`}></div>
         <div className={`step ${step >= 3 ? "active" : ""}`}>
           <div className="step-number">3</div>
-          <span className="step-label">Cost Inputs</span>
+          <span className="step-label">{t("estimator.step3")}</span>
         </div>
       </div>
 
-      {/* Step 1: Crop & Region */}
+      {/* Step 1 */}
       {step === 1 && (
         <div className="form-card">
           <h2>🌾 Select Crop & Region</h2>
@@ -184,7 +193,7 @@ const Estimator: React.FC = () => {
 
           <div className="form-group">
             <label>
-              Crop Type <span className="required">*</span>
+              {t("estimator.crop_label")} <span className="required">*</span>
             </label>
             <select
               name="cropId"
@@ -203,7 +212,7 @@ const Estimator: React.FC = () => {
 
           <div className="form-group">
             <label>
-              District / Region <span className="required">*</span>
+              {t("estimator.region_label")} <span className="required">*</span>
             </label>
             <select
               name="regionId"
@@ -268,7 +277,7 @@ const Estimator: React.FC = () => {
         </div>
       )}
 
-      {/* Step 2: Land & Irrigation */}
+      {/* Step 2 */}
       {step === 2 && (
         <div className="form-card">
           <h2>🏞️ Land & Irrigation Details</h2>
@@ -280,14 +289,15 @@ const Estimator: React.FC = () => {
           <div className="form-row">
             <div className="form-group">
               <label>
-                Land Size (in Acres) <span className="required">*</span>
+                {t("estimator.land_size_label")}{" "}
+                <span className="required">*</span>
               </label>
               <input
                 type="number"
                 name="landSize"
                 className="form-control"
                 placeholder="e.g. 5"
-                value={formData.landSize}
+                value={formData.landSize || ""}
                 onChange={handleChange}
                 min="0.1"
                 step="0.1"
@@ -296,10 +306,10 @@ const Estimator: React.FC = () => {
                 Enter total cultivable land area in acres
               </p>
             </div>
-
             <div className="form-group">
               <label>
-                Irrigation Type <span className="required">*</span>
+                {t("estimator.irrigation_label")}{" "}
+                <span className="required">*</span>
               </label>
               <select
                 name="irrigationType"
@@ -319,6 +329,28 @@ const Estimator: React.FC = () => {
             </div>
           </div>
 
+          {/* Price Source Toggle */}
+          <div className="form-group" style={{ marginTop: "1rem" }}>
+            <label>💰 Price Source</label>
+            <div className="price-source-toggle">
+              {PRICE_SOURCES.map((ps) => (
+                <button
+                  key={ps.value}
+                  className={`price-toggle-btn ${formData.priceSource === ps.value ? "active" : ""}`}
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, priceSource: ps.value }))
+                  }
+                  type="button"
+                >
+                  {ps.label}
+                </button>
+              ))}
+            </div>
+            <p className="form-hint">
+              Select which price to use for revenue calculation
+            </p>
+          </div>
+
           <div className="form-actions">
             <button className="btn btn-secondary" onClick={prevStep}>
               ← Back
@@ -334,100 +366,42 @@ const Estimator: React.FC = () => {
         </div>
       )}
 
-      {/* Step 3: Cost Inputs */}
+      {/* Step 3 */}
       {step === 3 && (
         <div className="form-card">
           <h2>💸 Cost Inputs (Per Acre)</h2>
           <p className="form-description">
-            Enter your estimated costs per acre in INR. Leave blank to use
-            default values for the selected crop.
+            Enter your estimated costs per acre in INR. Leave as 0 to use
+            default values.
           </p>
 
           <div className="cost-inputs-grid">
-            <div className="form-group">
-              <label>Seeds (₹/acre)</label>
-              <input
-                type="number"
-                name="seeds"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.seeds}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Fertilizer (₹/acre)</label>
-              <input
-                type="number"
-                name="fertilizer"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.fertilizer}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Pesticide (₹/acre)</label>
-              <input
-                type="number"
-                name="pesticide"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.pesticide}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Labor (₹/acre)</label>
-              <input
-                type="number"
-                name="labor"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.labor}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Irrigation (₹/acre)</label>
-              <input
-                type="number"
-                name="irrigation"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.irrigation}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Transport (₹/acre)</label>
-              <input
-                type="number"
-                name="transport"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.transport}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Miscellaneous (₹/acre)</label>
-              <input
-                type="number"
-                name="misc"
-                className="form-control"
-                placeholder="Default used if empty"
-                value={formData.costs.misc}
-                onChange={handleCostChange}
-                min="0"
-              />
-            </div>
+            {[
+              "seeds",
+              "fertilizer",
+              "pesticide",
+              "labor",
+              "irrigation",
+              "transport",
+              "misc",
+            ].map((field) => (
+              <div className="form-group" key={field}>
+                <label>
+                  {field.charAt(0).toUpperCase() + field.slice(1)} (₹/acre)
+                </label>
+                <input
+                  type="number"
+                  name={field}
+                  className="form-control"
+                  placeholder="Default used if 0"
+                  value={
+                    (formData.costs as Record<string, number>)[field] || ""
+                  }
+                  onChange={handleCostChange}
+                  min="0"
+                />
+              </div>
+            ))}
           </div>
 
           {error && (
@@ -457,10 +431,10 @@ const Estimator: React.FC = () => {
                     className="spinner"
                     style={{ width: 20, height: 20, borderWidth: 2 }}
                   ></div>
-                  Calculating...
+                  {t("estimator.generating")}
                 </>
               ) : (
-                "📊 Calculate Profitability"
+                `📊 ${t("estimator.generate_btn")}`
               )}
             </button>
           </div>

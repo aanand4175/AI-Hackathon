@@ -7,6 +7,25 @@ dotenv.config({ path: path.join(__dirname, "..", "..", ".env") });
 import Crop from "../models/Crop";
 import Region from "../models/Region";
 
+// Helper to generate 7-day forecast
+const genForecast = (baseTemp: number, baseRain: number) => {
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const conditions = [
+    "Sunny",
+    "Partly Cloudy",
+    "Cloudy",
+    "Light Rain",
+    "Heavy Rain",
+    "Thunderstorm",
+  ];
+  return days.map((d) => ({
+    day: d,
+    tempC: baseTemp + Math.round((Math.random() - 0.5) * 8),
+    rainfallMM: Math.round(baseRain * (0.3 + Math.random() * 1.4)),
+    condition: conditions[Math.floor(Math.random() * conditions.length)],
+  }));
+};
+
 const crops = [
   {
     name: "Rice (Paddy)",
@@ -14,8 +33,12 @@ const crops = [
     baseYieldPerAcre: 22,
     growthDurationDays: 120,
     waterRequirement: "High",
+    waterRequirementMM: 1200,
     mspPerQuintal: 2203,
     marketPricePerQuintal: 2450,
+    mandiPrice: 2380,
+    onlinePrice: 2520,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 1200,
       fertilizer: 3500,
@@ -25,6 +48,53 @@ const crops = [
       transport: 800,
       misc: 1000,
     },
+    mspHistory: [
+      { year: 2020, msp: 1868 },
+      { year: 2021, msp: 1940 },
+      { year: 2022, msp: 2040 },
+      { year: 2023, msp: 2183 },
+      { year: 2024, msp: 2203 },
+    ],
+    pestRules: [
+      {
+        name: "Brown Plant Hopper",
+        probability: 45,
+        severity: "High",
+        season: "Kharif",
+        description: "Sucks sap from stems causing yellowing and drying.",
+      },
+      {
+        name: "Blast Disease",
+        probability: 35,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Fungal disease causing lesions on leaves and panicles.",
+      },
+    ],
+    cropRotation: [
+      {
+        nextCrop: "Wheat",
+        benefit: "Nitrogen fixation balance, breaks pest cycle",
+      },
+      {
+        nextCrop: "Mustard",
+        benefit: "Low water need after paddy, improves soil structure",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 90,
+      "Black Cotton Soil": 70,
+      "Red Laterite": 60,
+      "Sandy/Arid": 20,
+      "Alluvial (Delta)": 95,
+      "Black Soil": 65,
+    },
+    temperatureRange: { min: 20, max: 37 },
+    costTips: [
+      "Use certified seeds to reduce seed rate by 20%",
+      "Apply DAP at sowing for better root development",
+      "Use neem-coated urea to reduce fertilizer wastage",
+    ],
   },
   {
     name: "Wheat",
@@ -32,8 +102,12 @@ const crops = [
     baseYieldPerAcre: 20,
     growthDurationDays: 135,
     waterRequirement: "Medium",
+    waterRequirementMM: 450,
     mspPerQuintal: 2275,
     marketPricePerQuintal: 2500,
+    mandiPrice: 2420,
+    onlinePrice: 2580,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 1000,
       fertilizer: 3000,
@@ -43,6 +117,54 @@ const crops = [
       transport: 700,
       misc: 800,
     },
+    mspHistory: [
+      { year: 2020, msp: 1925 },
+      { year: 2021, msp: 1975 },
+      { year: 2022, msp: 2015 },
+      { year: 2023, msp: 2125 },
+      { year: 2024, msp: 2275 },
+    ],
+    pestRules: [
+      {
+        name: "Yellow Rust",
+        probability: 30,
+        severity: "High",
+        season: "Rabi",
+        description:
+          "Fungal infection causing yellow stripe patches on leaves.",
+      },
+      {
+        name: "Aphids",
+        probability: 40,
+        severity: "Medium",
+        season: "Rabi",
+        description: "Small insects sucking sap, causing leaf curl.",
+      },
+    ],
+    cropRotation: [
+      {
+        nextCrop: "Rice (Paddy)",
+        benefit: "Classic rotation, maintains soil fertility",
+      },
+      {
+        nextCrop: "Soybean",
+        benefit: "Fixes nitrogen, reduces fertilizer need",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 95,
+      "Black Cotton Soil": 75,
+      "Red Laterite": 50,
+      "Sandy/Arid": 40,
+      "Alluvial (Delta)": 85,
+      "Black Soil": 70,
+    },
+    temperatureRange: { min: 10, max: 25 },
+    costTips: [
+      "Zero tillage reduces labor cost by ₹2,000/acre",
+      "Laser leveling saves 25% irrigation water",
+      "Timely sowing in Nov reduces pest risk",
+    ],
   },
   {
     name: "Maize",
@@ -50,8 +172,12 @@ const crops = [
     baseYieldPerAcre: 25,
     growthDurationDays: 100,
     waterRequirement: "Medium",
+    waterRequirementMM: 500,
     mspPerQuintal: 2090,
     marketPricePerQuintal: 2200,
+    mandiPrice: 2150,
+    onlinePrice: 2280,
+    marketDemand: "Medium",
     defaultCosts: {
       seeds: 900,
       fertilizer: 2800,
@@ -61,6 +187,50 @@ const crops = [
       transport: 600,
       misc: 700,
     },
+    mspHistory: [
+      { year: 2020, msp: 1850 },
+      { year: 2021, msp: 1870 },
+      { year: 2022, msp: 1962 },
+      { year: 2023, msp: 2090 },
+      { year: 2024, msp: 2090 },
+    ],
+    pestRules: [
+      {
+        name: "Fall Armyworm",
+        probability: 55,
+        severity: "High",
+        season: "Kharif",
+        description: "Devastating pest that feeds on leaves and ears.",
+      },
+      {
+        name: "Stem Borer",
+        probability: 30,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Bores into stem, causing dead hearts.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Wheat", benefit: "Good cereal-cereal rotation" },
+      {
+        nextCrop: "Groundnut",
+        benefit: "Nitrogen fixation improves maize yield next cycle",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 85,
+      "Black Cotton Soil": 80,
+      "Red Laterite": 65,
+      "Sandy/Arid": 35,
+      "Alluvial (Delta)": 80,
+      "Black Soil": 75,
+    },
+    temperatureRange: { min: 18, max: 35 },
+    costTips: [
+      "Hybrid seeds increase yield by 30-40%",
+      "Intercropping with pulses reduces pest pressure",
+      "Apply zinc sulfate to boost grain quality",
+    ],
   },
   {
     name: "Cotton",
@@ -68,8 +238,12 @@ const crops = [
     baseYieldPerAcre: 8,
     growthDurationDays: 180,
     waterRequirement: "High",
+    waterRequirementMM: 700,
     mspPerQuintal: 6620,
     marketPricePerQuintal: 7200,
+    mandiPrice: 6900,
+    onlinePrice: 7400,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 2000,
       fertilizer: 4000,
@@ -79,6 +253,50 @@ const crops = [
       transport: 1000,
       misc: 1500,
     },
+    mspHistory: [
+      { year: 2020, msp: 5515 },
+      { year: 2021, msp: 5726 },
+      { year: 2022, msp: 6080 },
+      { year: 2023, msp: 6620 },
+      { year: 2024, msp: 6620 },
+    ],
+    pestRules: [
+      {
+        name: "Pink Bollworm",
+        probability: 60,
+        severity: "High",
+        season: "Kharif",
+        description: "Larvae damages bolls, reducing lint quality.",
+      },
+      {
+        name: "Whitefly",
+        probability: 50,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Transmits leaf curl virus, sticky honeydew.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Wheat", benefit: "Breaks pest cycle of cotton" },
+      {
+        nextCrop: "Jowar (Sorghum)",
+        benefit: "Low input crop after high-cost cotton",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 60,
+      "Black Cotton Soil": 95,
+      "Red Laterite": 55,
+      "Sandy/Arid": 30,
+      "Alluvial (Delta)": 50,
+      "Black Soil": 90,
+    },
+    temperatureRange: { min: 21, max: 38 },
+    costTips: [
+      "Bt cotton reduces pesticide cost by 40%",
+      "Drip irrigation saves 30% water vs flood",
+      "Dense planting increases yield per acre",
+    ],
   },
   {
     name: "Sugarcane",
@@ -86,8 +304,12 @@ const crops = [
     baseYieldPerAcre: 300,
     growthDurationDays: 365,
     waterRequirement: "High",
+    waterRequirementMM: 1500,
     mspPerQuintal: 315,
     marketPricePerQuintal: 350,
+    mandiPrice: 330,
+    onlinePrice: 360,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 5000,
       fertilizer: 5000,
@@ -97,6 +319,53 @@ const crops = [
       transport: 2000,
       misc: 2000,
     },
+    mspHistory: [
+      { year: 2020, msp: 285 },
+      { year: 2021, msp: 290 },
+      { year: 2022, msp: 305 },
+      { year: 2023, msp: 315 },
+      { year: 2024, msp: 315 },
+    ],
+    pestRules: [
+      {
+        name: "Red Rot",
+        probability: 35,
+        severity: "High",
+        season: "Year-round",
+        description: "Fungal disease causing reddening of internal tissue.",
+      },
+      {
+        name: "Top Borer",
+        probability: 40,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Larvae bore into top of cane causing dead heart.",
+      },
+    ],
+    cropRotation: [
+      {
+        nextCrop: "Rice (Paddy)",
+        benefit: "Paddy benefits from residual moisture",
+      },
+      {
+        nextCrop: "Wheat",
+        benefit: "Winter crop utilizes remaining nutrients",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 85,
+      "Black Cotton Soil": 80,
+      "Red Laterite": 60,
+      "Sandy/Arid": 25,
+      "Alluvial (Delta)": 90,
+      "Black Soil": 75,
+    },
+    temperatureRange: { min: 20, max: 40 },
+    costTips: [
+      "Ratoon crop saves ₹5,000 on seed cost",
+      "Trash mulching reduces irrigation need",
+      "Settling cane in trenches increases yield 15%",
+    ],
   },
   {
     name: "Soybean",
@@ -104,8 +373,12 @@ const crops = [
     baseYieldPerAcre: 10,
     growthDurationDays: 95,
     waterRequirement: "Low",
+    waterRequirementMM: 350,
     mspPerQuintal: 4600,
     marketPricePerQuintal: 5000,
+    mandiPrice: 4800,
+    onlinePrice: 5200,
+    marketDemand: "Medium",
     defaultCosts: {
       seeds: 1500,
       fertilizer: 2500,
@@ -115,6 +388,47 @@ const crops = [
       transport: 600,
       misc: 700,
     },
+    mspHistory: [
+      { year: 2020, msp: 3880 },
+      { year: 2021, msp: 3950 },
+      { year: 2022, msp: 4300 },
+      { year: 2023, msp: 4600 },
+      { year: 2024, msp: 4600 },
+    ],
+    pestRules: [
+      {
+        name: "Stem Fly",
+        probability: 40,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Maggots tunnel into stems causing wilting.",
+      },
+      {
+        name: "Girdle Beetle",
+        probability: 35,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Girdles stem and petioles causing breakage.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Wheat", benefit: "Soybean fixes nitrogen for wheat" },
+      { nextCrop: "Maize", benefit: "Reduces pest carryover" },
+    ],
+    soilSuitability: {
+      Alluvial: 75,
+      "Black Cotton Soil": 90,
+      "Red Laterite": 65,
+      "Sandy/Arid": 30,
+      "Alluvial (Delta)": 70,
+      "Black Soil": 85,
+    },
+    temperatureRange: { min: 20, max: 35 },
+    costTips: [
+      "Rhizobium seed treatment saves ₹1,500 on nitrogen",
+      "Inter-cropping with pigeon pea increases returns",
+      "Early sowing in June gives best yields",
+    ],
   },
   {
     name: "Mustard",
@@ -122,8 +436,12 @@ const crops = [
     baseYieldPerAcre: 7,
     growthDurationDays: 110,
     waterRequirement: "Low",
+    waterRequirementMM: 250,
     mspPerQuintal: 5650,
     marketPricePerQuintal: 6200,
+    mandiPrice: 5900,
+    onlinePrice: 6400,
+    marketDemand: "Medium",
     defaultCosts: {
       seeds: 600,
       fertilizer: 2000,
@@ -133,6 +451,50 @@ const crops = [
       transport: 500,
       misc: 500,
     },
+    mspHistory: [
+      { year: 2020, msp: 4650 },
+      { year: 2021, msp: 4950 },
+      { year: 2022, msp: 5050 },
+      { year: 2023, msp: 5450 },
+      { year: 2024, msp: 5650 },
+    ],
+    pestRules: [
+      {
+        name: "Aphids",
+        probability: 50,
+        severity: "Medium",
+        season: "Rabi",
+        description: "Colonies on flowers reduce seed setting.",
+      },
+      {
+        name: "White Rust",
+        probability: 25,
+        severity: "Low",
+        season: "Rabi",
+        description: "White pustules on underside of leaves.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Rice (Paddy)", benefit: "Oilseed-cereal balance" },
+      {
+        nextCrop: "Cotton",
+        benefit: "Mustard residues suppress soil nematodes",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 85,
+      "Black Cotton Soil": 65,
+      "Red Laterite": 50,
+      "Sandy/Arid": 60,
+      "Alluvial (Delta)": 75,
+      "Black Soil": 60,
+    },
+    temperatureRange: { min: 10, max: 25 },
+    costTips: [
+      "Broadcast sowing reduces labor cost",
+      "One irrigation at flowering stage doubles yield",
+      "Mix with gram for intercropping income",
+    ],
   },
   {
     name: "Groundnut",
@@ -140,8 +502,12 @@ const crops = [
     baseYieldPerAcre: 9,
     growthDurationDays: 120,
     waterRequirement: "Medium",
+    waterRequirementMM: 500,
     mspPerQuintal: 6377,
     marketPricePerQuintal: 6800,
+    mandiPrice: 6600,
+    onlinePrice: 7000,
+    marketDemand: "Medium",
     defaultCosts: {
       seeds: 3000,
       fertilizer: 2500,
@@ -151,6 +517,50 @@ const crops = [
       transport: 700,
       misc: 800,
     },
+    mspHistory: [
+      { year: 2020, msp: 5275 },
+      { year: 2021, msp: 5550 },
+      { year: 2022, msp: 5850 },
+      { year: 2023, msp: 6377 },
+      { year: 2024, msp: 6377 },
+    ],
+    pestRules: [
+      {
+        name: "Tikka Disease",
+        probability: 40,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Circular brown spots on leaves reducing photosynthesis.",
+      },
+      {
+        name: "White Grub",
+        probability: 30,
+        severity: "High",
+        season: "Kharif",
+        description: "Root-feeding larvae cause plant wilting.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Wheat", benefit: "Groundnut residues add nitrogen to soil" },
+      {
+        nextCrop: "Bajra (Pearl Millet)",
+        benefit: "Low water crop after groundnut",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 70,
+      "Black Cotton Soil": 60,
+      "Red Laterite": 80,
+      "Sandy/Arid": 65,
+      "Alluvial (Delta)": 60,
+      "Black Soil": 75,
+    },
+    temperatureRange: { min: 20, max: 35 },
+    costTips: [
+      "Seed treatment with fungicide prevents tikka",
+      "Gypsum application at pegging stage boosts yield",
+      "Harvest when 75% pods are mature",
+    ],
   },
   {
     name: "Jowar (Sorghum)",
@@ -158,8 +568,12 @@ const crops = [
     baseYieldPerAcre: 8,
     growthDurationDays: 100,
     waterRequirement: "Low",
+    waterRequirementMM: 300,
     mspPerQuintal: 3225,
     marketPricePerQuintal: 3500,
+    mandiPrice: 3350,
+    onlinePrice: 3600,
+    marketDemand: "Low",
     defaultCosts: {
       seeds: 500,
       fertilizer: 1500,
@@ -169,6 +583,50 @@ const crops = [
       transport: 400,
       misc: 400,
     },
+    mspHistory: [
+      { year: 2020, msp: 2620 },
+      { year: 2021, msp: 2738 },
+      { year: 2022, msp: 2970 },
+      { year: 2023, msp: 3180 },
+      { year: 2024, msp: 3225 },
+    ],
+    pestRules: [
+      {
+        name: "Shoot Fly",
+        probability: 45,
+        severity: "High",
+        season: "Kharif",
+        description: "Maggot cuts central shoot causing dead heart.",
+      },
+      {
+        name: "Grain Mold",
+        probability: 30,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Fungal infection on grain reducing quality.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Groundnut", benefit: "Legume fixation after cereal" },
+      {
+        nextCrop: "Cotton",
+        benefit: "Jowar stubble improves soil organic matter",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 65,
+      "Black Cotton Soil": 85,
+      "Red Laterite": 75,
+      "Sandy/Arid": 55,
+      "Alluvial (Delta)": 60,
+      "Black Soil": 85,
+    },
+    temperatureRange: { min: 25, max: 40 },
+    costTips: [
+      "Drought-tolerant hybrid saves irrigation cost",
+      "Bird-resistant variety reduces grain loss",
+      "Sell as cattle feed for extra income from stalks",
+    ],
   },
   {
     name: "Bajra (Pearl Millet)",
@@ -176,8 +634,12 @@ const crops = [
     baseYieldPerAcre: 9,
     growthDurationDays: 85,
     waterRequirement: "Low",
+    waterRequirementMM: 250,
     mspPerQuintal: 2500,
     marketPricePerQuintal: 2800,
+    mandiPrice: 2650,
+    onlinePrice: 2900,
+    marketDemand: "Low",
     defaultCosts: {
       seeds: 400,
       fertilizer: 1200,
@@ -187,33 +649,126 @@ const crops = [
       transport: 350,
       misc: 350,
     },
+    mspHistory: [
+      { year: 2020, msp: 2150 },
+      { year: 2021, msp: 2250 },
+      { year: 2022, msp: 2350 },
+      { year: 2023, msp: 2500 },
+      { year: 2024, msp: 2500 },
+    ],
+    pestRules: [
+      {
+        name: "Downy Mildew",
+        probability: 35,
+        severity: "High",
+        season: "Kharif",
+        description: "Systemic fungal infection causing green ear disease.",
+      },
+      {
+        name: "Ergot",
+        probability: 20,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Fungal infection producing honeydew on earheads.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Mustard", benefit: "Rabi oilseed after kharif millet" },
+      { nextCrop: "Wheat", benefit: "Cereal rotation maintains soil health" },
+    ],
+    soilSuitability: {
+      Alluvial: 60,
+      "Black Cotton Soil": 70,
+      "Red Laterite": 75,
+      "Sandy/Arid": 85,
+      "Alluvial (Delta)": 55,
+      "Black Soil": 70,
+    },
+    temperatureRange: { min: 25, max: 42 },
+    costTips: [
+      "Tolerates poor soil, reduce fertilizer by 30%",
+      "Direct seeding eliminates transplanting cost",
+      "Dual purpose: grain + excellent cattle fodder",
+    ],
   },
   {
     name: "Strawberry",
     category: "Horticulture",
-    baseYieldPerAcre: 50, // quintals (approx 5 tonnes)
+    baseYieldPerAcre: 50,
     growthDurationDays: 150,
     waterRequirement: "High",
-    mspPerQuintal: 15000, // no official MSP, using proxy floor price
+    waterRequirementMM: 600,
+    mspPerQuintal: 15000,
     marketPricePerQuintal: 25000,
+    mandiPrice: 20000,
+    onlinePrice: 30000,
+    marketDemand: "High",
     defaultCosts: {
-      seeds: 40000, // expensive plants
+      seeds: 40000,
       fertilizer: 15000,
       pesticide: 10000,
       labor: 30000,
       irrigation: 10000,
       transport: 15000,
-      misc: 20000, // mulching, drip setup
+      misc: 20000,
     },
+    mspHistory: [
+      { year: 2020, msp: 12000 },
+      { year: 2021, msp: 13000 },
+      { year: 2022, msp: 13500 },
+      { year: 2023, msp: 14500 },
+      { year: 2024, msp: 15000 },
+    ],
+    pestRules: [
+      {
+        name: "Botrytis (Grey Mold)",
+        probability: 50,
+        severity: "High",
+        season: "Winter",
+        description: "Fuzzy grey mold on fruits during humid conditions.",
+      },
+      {
+        name: "Spider Mites",
+        probability: 40,
+        severity: "Medium",
+        season: "Winter",
+        description: "Tiny mites cause leaf bronzing and webbing.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Tomato", benefit: "Sequential cash crop maximizes returns" },
+      {
+        nextCrop: "Coriander",
+        benefit: "Low input crop after expensive strawberry",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 70,
+      "Black Cotton Soil": 40,
+      "Red Laterite": 75,
+      "Sandy/Arid": 30,
+      "Alluvial (Delta)": 65,
+      "Black Soil": 45,
+    },
+    temperatureRange: { min: 10, max: 25 },
+    costTips: [
+      "Mulching with plastic saves 40% water",
+      "Buy runners from certified nurseries only",
+      "Sell directly to retailers for 2x mandi price",
+    ],
   },
   {
     name: "Tomato",
     category: "Horticulture",
-    baseYieldPerAcre: 150, // quintals (15 tonnes)
+    baseYieldPerAcre: 150,
     growthDurationDays: 120,
     waterRequirement: "Medium",
-    mspPerQuintal: 800, // proxy floor price
-    marketPricePerQuintal: 1500, // highly volatile
+    waterRequirementMM: 500,
+    mspPerQuintal: 800,
+    marketPricePerQuintal: 1500,
+    mandiPrice: 1200,
+    onlinePrice: 1800,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 5000,
       fertilizer: 8000,
@@ -221,17 +776,65 @@ const crops = [
       labor: 15000,
       irrigation: 5000,
       transport: 8000,
-      misc: 5000, // staking
+      misc: 5000,
     },
+    mspHistory: [
+      { year: 2020, msp: 500 },
+      { year: 2021, msp: 600 },
+      { year: 2022, msp: 650 },
+      { year: 2023, msp: 750 },
+      { year: 2024, msp: 800 },
+    ],
+    pestRules: [
+      {
+        name: "Fruit Borer",
+        probability: 55,
+        severity: "High",
+        season: "Year-round",
+        description: "Helicoverpa larvae bore into fruits causing rot.",
+      },
+      {
+        name: "Early Blight",
+        probability: 45,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Concentric ring spots on leaves causing defoliation.",
+      },
+    ],
+    cropRotation: [
+      {
+        nextCrop: "Onion",
+        benefit: "Different root depth utilizes soil layers",
+      },
+      { nextCrop: "Maize", benefit: "Cereal breaks vegetable disease cycle" },
+    ],
+    soilSuitability: {
+      Alluvial: 80,
+      "Black Cotton Soil": 75,
+      "Red Laterite": 85,
+      "Sandy/Arid": 35,
+      "Alluvial (Delta)": 80,
+      "Black Soil": 70,
+    },
+    temperatureRange: { min: 18, max: 32 },
+    costTips: [
+      "Staking supports increase yield by 25%",
+      "Harvest every 4 days for best quality",
+      "Process into paste if price crashes below ₹500/qtl",
+    ],
   },
   {
     name: "Onion",
     category: "Horticulture",
-    baseYieldPerAcre: 100, // quintals
+    baseYieldPerAcre: 100,
     growthDurationDays: 130,
     waterRequirement: "Medium",
-    mspPerQuintal: 1200, // proxy floor price
-    marketPricePerQuintal: 2000, // volatile
+    waterRequirementMM: 400,
+    mspPerQuintal: 1200,
+    marketPricePerQuintal: 2000,
+    mandiPrice: 1600,
+    onlinePrice: 2200,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 4000,
       fertilizer: 7000,
@@ -241,51 +844,192 @@ const crops = [
       transport: 5000,
       misc: 3000,
     },
+    mspHistory: [
+      { year: 2020, msp: 800 },
+      { year: 2021, msp: 900 },
+      { year: 2022, msp: 1000 },
+      { year: 2023, msp: 1100 },
+      { year: 2024, msp: 1200 },
+    ],
+    pestRules: [
+      {
+        name: "Purple Blotch",
+        probability: 40,
+        severity: "Medium",
+        season: "Rabi",
+        description: "Purple lesions on leaves reducing bulb size.",
+      },
+      {
+        name: "Thrips",
+        probability: 55,
+        severity: "High",
+        season: "Year-round",
+        description: "Silvery streaks on leaves from rasping damage.",
+      },
+    ],
+    cropRotation: [
+      {
+        nextCrop: "Tomato",
+        benefit: "Different pest profile reduces pressure",
+      },
+      { nextCrop: "Wheat", benefit: "Cereal rotation after vegetables" },
+    ],
+    soilSuitability: {
+      Alluvial: 80,
+      "Black Cotton Soil": 70,
+      "Red Laterite": 75,
+      "Sandy/Arid": 40,
+      "Alluvial (Delta)": 70,
+      "Black Soil": 65,
+    },
+    temperatureRange: { min: 13, max: 30 },
+    costTips: [
+      "Store in ventilated storage to get off-season premium",
+      "Rabi onion gives better storage quality",
+      "Grow Kharif onion for premium August-Oct prices",
+    ],
   },
   {
     name: "Red Chilli",
     category: "Spice",
-    baseYieldPerAcre: 20, // dry quintals
+    baseYieldPerAcre: 20,
     growthDurationDays: 160,
     waterRequirement: "Medium",
-    mspPerQuintal: 8000, // proxy floor
+    waterRequirementMM: 550,
+    mspPerQuintal: 8000,
     marketPricePerQuintal: 12000,
+    mandiPrice: 10000,
+    onlinePrice: 14000,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 3000,
       fertilizer: 6000,
       pesticide: 8000,
-      labor: 15000, // picking is labor intensive
+      labor: 15000,
       irrigation: 4000,
       transport: 3000,
       misc: 2000,
     },
+    mspHistory: [
+      { year: 2020, msp: 6000 },
+      { year: 2021, msp: 6500 },
+      { year: 2022, msp: 7000 },
+      { year: 2023, msp: 7500 },
+      { year: 2024, msp: 8000 },
+    ],
+    pestRules: [
+      {
+        name: "Thrips",
+        probability: 60,
+        severity: "High",
+        season: "Kharif",
+        description: "Curling of leaves and flower drop.",
+      },
+      {
+        name: "Leaf Curl Virus",
+        probability: 45,
+        severity: "High",
+        season: "Kharif",
+        description: "Virus causes severe stunting and yield loss.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Onion", benefit: "Spice-vegetable rotation" },
+      { nextCrop: "Wheat", benefit: "Cereal rotation after spice crop" },
+    ],
+    soilSuitability: {
+      Alluvial: 75,
+      "Black Cotton Soil": 85,
+      "Red Laterite": 80,
+      "Sandy/Arid": 35,
+      "Alluvial (Delta)": 70,
+      "Black Soil": 80,
+    },
+    temperatureRange: { min: 20, max: 35 },
+    costTips: [
+      "Dry chilli sells at 3x fresh price",
+      "Guntur market gives best prices in India",
+      "Drip fertigation reduces cost by 25%",
+    ],
   },
   {
     name: "Turmeric",
     category: "Spice",
-    baseYieldPerAcre: 80, // fresh rhizomes quintals
+    baseYieldPerAcre: 80,
     growthDurationDays: 240,
     waterRequirement: "High",
+    waterRequirementMM: 800,
     mspPerQuintal: 4000,
     marketPricePerQuintal: 6000,
+    mandiPrice: 5000,
+    onlinePrice: 7000,
+    marketDemand: "High",
     defaultCosts: {
-      seeds: 12000, // seed rhizomes
+      seeds: 12000,
       fertilizer: 8000,
       pesticide: 3000,
-      labor: 20000, // digging
+      labor: 20000,
       irrigation: 8000,
       transport: 4000,
-      misc: 5000, // boiling/drying
+      misc: 5000,
     },
+    mspHistory: [
+      { year: 2020, msp: 3000 },
+      { year: 2021, msp: 3200 },
+      { year: 2022, msp: 3500 },
+      { year: 2023, msp: 3800 },
+      { year: 2024, msp: 4000 },
+    ],
+    pestRules: [
+      {
+        name: "Rhizome Rot",
+        probability: 35,
+        severity: "High",
+        season: "Kharif",
+        description: "Fungal infection causing rotting of rhizomes.",
+      },
+      {
+        name: "Leaf Blotch",
+        probability: 30,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Brown spots on leaves reducing growth.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Onion", benefit: "Short-duration crop after long turmeric" },
+      {
+        nextCrop: "Rice (Paddy)",
+        benefit: "Paddy benefits from turmeric residues",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 75,
+      "Black Cotton Soil": 70,
+      "Red Laterite": 85,
+      "Sandy/Arid": 20,
+      "Alluvial (Delta)": 80,
+      "Black Soil": 65,
+    },
+    temperatureRange: { min: 20, max: 35 },
+    costTips: [
+      "Intercrop with coconut/arecanut for shade",
+      "Boiling and drying adds ₹2,000/qtl value",
+      "Erode market pays premium for polished turmeric",
+    ],
   },
   {
     name: "Coriander",
     category: "Spice",
-    baseYieldPerAcre: 5, // seeds quintals
+    baseYieldPerAcre: 5,
     growthDurationDays: 110,
     waterRequirement: "Low",
+    waterRequirementMM: 200,
     mspPerQuintal: 6000,
     marketPricePerQuintal: 8000,
+    mandiPrice: 7000,
+    onlinePrice: 9000,
+    marketDemand: "Medium",
     defaultCosts: {
       seeds: 1500,
       fertilizer: 2000,
@@ -295,42 +1039,176 @@ const crops = [
       transport: 1000,
       misc: 1000,
     },
+    mspHistory: [
+      { year: 2020, msp: 4500 },
+      { year: 2021, msp: 5000 },
+      { year: 2022, msp: 5200 },
+      { year: 2023, msp: 5800 },
+      { year: 2024, msp: 6000 },
+    ],
+    pestRules: [
+      {
+        name: "Powdery Mildew",
+        probability: 40,
+        severity: "Medium",
+        season: "Rabi",
+        description: "White powdery growth on leaves.",
+      },
+      {
+        name: "Aphids",
+        probability: 35,
+        severity: "Low",
+        season: "Rabi",
+        description: "Colony formation on tender shoots.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Maize", benefit: "Cereal after spice breaks disease cycle" },
+      { nextCrop: "Tomato", benefit: "Vegetable rotation maximizes income" },
+    ],
+    soilSuitability: {
+      Alluvial: 80,
+      "Black Cotton Soil": 70,
+      "Red Laterite": 65,
+      "Sandy/Arid": 55,
+      "Alluvial (Delta)": 75,
+      "Black Soil": 70,
+    },
+    temperatureRange: { min: 15, max: 28 },
+    costTips: [
+      "Green coriander leaves sell at ₹40-80/kg",
+      "Dual harvest: leaves first then seeds",
+      "Rajasthan coriander gets premium prices",
+    ],
   },
   {
     name: "Ashwagandha",
     category: "Herbal",
-    baseYieldPerAcre: 4, // dry roots quintals
+    baseYieldPerAcre: 4,
     growthDurationDays: 170,
     waterRequirement: "Low",
+    waterRequirementMM: 200,
     mspPerQuintal: 15000,
     marketPricePerQuintal: 22000,
+    mandiPrice: 18000,
+    onlinePrice: 25000,
+    marketDemand: "High",
     defaultCosts: {
       seeds: 1000,
       fertilizer: 2000,
       pesticide: 1000,
-      labor: 10000, // digging roots
+      labor: 10000,
       irrigation: 2000,
       transport: 2000,
       misc: 2000,
     },
+    mspHistory: [
+      { year: 2020, msp: 10000 },
+      { year: 2021, msp: 11000 },
+      { year: 2022, msp: 12500 },
+      { year: 2023, msp: 14000 },
+      { year: 2024, msp: 15000 },
+    ],
+    pestRules: [
+      {
+        name: "Alternaria Blight",
+        probability: 25,
+        severity: "Medium",
+        season: "Kharif",
+        description: "Leaf spots reducing root development.",
+      },
+      {
+        name: "Root Rot",
+        probability: 20,
+        severity: "High",
+        season: "Kharif",
+        description: "Waterlogging causes root decay.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Wheat", benefit: "Ashwagandha residues enrich soil" },
+      {
+        nextCrop: "Bajra (Pearl Millet)",
+        benefit: "Low-water crop after herbal",
+      },
+    ],
+    soilSuitability: {
+      Alluvial: 60,
+      "Black Cotton Soil": 55,
+      "Red Laterite": 75,
+      "Sandy/Arid": 80,
+      "Alluvial (Delta)": 50,
+      "Black Soil": 55,
+    },
+    temperatureRange: { min: 20, max: 38 },
+    costTips: [
+      "Sandy loam soil gives best root quality",
+      "Avoid waterlogging — grows well in dry areas",
+      "Grade roots by size for 30% higher price",
+    ],
   },
   {
     name: "Tulsi (Holy Basil)",
     category: "Herbal",
-    baseYieldPerAcre: 15, // dry leaves quintals
+    baseYieldPerAcre: 15,
     growthDurationDays: 90,
     waterRequirement: "Medium",
+    waterRequirementMM: 350,
     mspPerQuintal: 4000,
     marketPricePerQuintal: 6000,
+    mandiPrice: 5000,
+    onlinePrice: 7000,
+    marketDemand: "Medium",
     defaultCosts: {
       seeds: 500,
       fertilizer: 1500,
       pesticide: 1000,
-      labor: 6000, // harvesting leaves
+      labor: 6000,
       irrigation: 2000,
       transport: 1500,
       misc: 1000,
     },
+    mspHistory: [
+      { year: 2020, msp: 2800 },
+      { year: 2021, msp: 3000 },
+      { year: 2022, msp: 3200 },
+      { year: 2023, msp: 3500 },
+      { year: 2024, msp: 4000 },
+    ],
+    pestRules: [
+      {
+        name: "Powdery Mildew",
+        probability: 30,
+        severity: "Low",
+        season: "Kharif",
+        description: "White coating on leaves.",
+      },
+      {
+        name: "Leaf Roller",
+        probability: 20,
+        severity: "Low",
+        season: "Year-round",
+        description: "Caterpillars roll and feed on leaves.",
+      },
+    ],
+    cropRotation: [
+      { nextCrop: "Coriander", benefit: "Herbal-spice rotation" },
+      { nextCrop: "Tomato", benefit: "Tulsi residues repel some pests" },
+    ],
+    soilSuitability: {
+      Alluvial: 75,
+      "Black Cotton Soil": 65,
+      "Red Laterite": 80,
+      "Sandy/Arid": 50,
+      "Alluvial (Delta)": 70,
+      "Black Soil": 65,
+    },
+    temperatureRange: { min: 15, max: 35 },
+    costTips: [
+      "Essential oil extraction gives 5x returns",
+      "3-4 harvests per year possible",
+      "Organic tulsi gets 40% premium",
+    ],
   },
 ];
 
@@ -342,6 +1220,7 @@ const regions = [
     avgRainfallMM: 740,
     yieldMultiplier: 1.35,
     irrigationAvailability: "Good",
+    waterAvailabilityMM: 900,
     riskFactors: [
       {
         factor: "Groundwater Depletion",
@@ -350,6 +1229,27 @@ const regions = [
           "Over-extraction of groundwater for paddy cultivation is a growing concern.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "PMFBY",
+        type: "Insurance",
+        description: "Pradhan Mantri Fasal Bima Yojana",
+        benefit: "Crop insurance at 2% premium",
+      },
+      {
+        name: "Soil Health Card",
+        type: "Advisory",
+        description: "Free soil testing and nutrient recommendations",
+        benefit: "Free soil analysis",
+      },
+    ],
+    weatherMock: { avgTempC: 28, forecast: genForecast(28, 3) },
   },
   {
     district: "Karnal",
@@ -358,6 +1258,7 @@ const regions = [
     avgRainfallMM: 680,
     yieldMultiplier: 1.25,
     irrigationAvailability: "Good",
+    waterAvailabilityMM: 850,
     riskFactors: [
       {
         factor: "Soil Salinity",
@@ -366,6 +1267,21 @@ const regions = [
           "Increasing salinity due to canal irrigation in some areas.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "Meri Fasal Mera Byora",
+        type: "Market Access",
+        description: "Guaranteed procurement at MSP",
+        benefit: "MSP guaranteed sale",
+      },
+    ],
+    weatherMock: { avgTempC: 30, forecast: genForecast(30, 2) },
   },
   {
     district: "Lucknow",
@@ -374,6 +1290,7 @@ const regions = [
     avgRainfallMM: 900,
     yieldMultiplier: 1.1,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 700,
     riskFactors: [
       {
         factor: "Flood Risk",
@@ -381,6 +1298,27 @@ const regions = [
         description: "Low-lying areas prone to flooding during monsoon season.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "PMFBY",
+        type: "Insurance",
+        description: "Crop insurance scheme",
+        benefit: "Crop insurance at 2% premium",
+      },
+      {
+        name: "RKVY",
+        type: "Subsidy",
+        description: "Rashtriya Krishi Vikas Yojana for farm mechanization",
+        benefit: "Up to 50% subsidy on equipment",
+      },
+    ],
+    weatherMock: { avgTempC: 32, forecast: genForecast(32, 5) },
   },
   {
     district: "Indore",
@@ -389,6 +1327,7 @@ const regions = [
     avgRainfallMM: 950,
     yieldMultiplier: 1.15,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 650,
     riskFactors: [
       {
         factor: "Erratic Monsoon",
@@ -396,6 +1335,21 @@ const regions = [
         description: "Monsoon variability affects soybean and cotton yields.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "Bhavantar Bhugtan",
+        type: "Price Support",
+        description: "Price deficiency payment scheme for oilseeds & pulses",
+        benefit: "Market price difference compensation",
+      },
+    ],
+    weatherMock: { avgTempC: 31, forecast: genForecast(31, 4) },
   },
   {
     district: "Nagpur",
@@ -404,6 +1358,7 @@ const regions = [
     avgRainfallMM: 1100,
     yieldMultiplier: 1.05,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 600,
     riskFactors: [
       {
         factor: "Cotton Pest",
@@ -418,6 +1373,27 @@ const regions = [
           "High input costs for cotton can lead to debt traps in bad years.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "PMFBY",
+        type: "Insurance",
+        description: "Crop insurance scheme",
+        benefit: "Crop insurance at 2% premium",
+      },
+      {
+        name: "Mahatma Phule Scheme",
+        type: "Loan Waiver",
+        description: "Farm loan waiver for small farmers",
+        benefit: "Up to ₹2 lakh waiver",
+      },
+    ],
+    weatherMock: { avgTempC: 33, forecast: genForecast(33, 5) },
   },
   {
     district: "Jodhpur",
@@ -426,6 +1402,7 @@ const regions = [
     avgRainfallMM: 360,
     yieldMultiplier: 0.7,
     irrigationAvailability: "Poor",
+    waterAvailabilityMM: 250,
     riskFactors: [
       {
         factor: "Drought",
@@ -439,6 +1416,27 @@ const regions = [
         description: "Temperatures exceeding 45°C can damage crops.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "Drought Relief",
+        type: "Disaster Relief",
+        description: "Financial assistance during drought years",
+        benefit: "Up to ₹10,000/hectare",
+      },
+      {
+        name: "PMKSY",
+        type: "Irrigation",
+        description: "Pradhan Mantri Krishi Sinchai Yojana",
+        benefit: "55-90% subsidy on micro-irrigation",
+      },
+    ],
+    weatherMock: { avgTempC: 38, forecast: genForecast(38, 1) },
   },
   {
     district: "Rajkot",
@@ -447,6 +1445,7 @@ const regions = [
     avgRainfallMM: 620,
     yieldMultiplier: 1.0,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 550,
     riskFactors: [
       {
         factor: "Cyclone Risk",
@@ -455,6 +1454,21 @@ const regions = [
           "Coastal proximity brings cyclone risks during late monsoon.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "GGRC Drip",
+        type: "Irrigation",
+        description: "Gujarat Green Revolution Company micro-irrigation",
+        benefit: "60% subsidy on drip systems",
+      },
+    ],
+    weatherMock: { avgTempC: 32, forecast: genForecast(32, 3) },
   },
   {
     district: "Belgaum",
@@ -463,6 +1477,7 @@ const regions = [
     avgRainfallMM: 1050,
     yieldMultiplier: 1.1,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 700,
     riskFactors: [
       {
         factor: "Price Crash Risk",
@@ -470,6 +1485,21 @@ const regions = [
         description: "Sugarcane glut can lead to delayed mill payments.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "Raitha Siri",
+        type: "Input Subsidy",
+        description: "Karnataka state seed and fertilizer subsidy",
+        benefit: "Up to ₹5,000/acre",
+      },
+    ],
+    weatherMock: { avgTempC: 27, forecast: genForecast(27, 5) },
   },
   {
     district: "Thanjavur",
@@ -478,6 +1508,7 @@ const regions = [
     avgRainfallMM: 950,
     yieldMultiplier: 1.3,
     irrigationAvailability: "Good",
+    waterAvailabilityMM: 1000,
     riskFactors: [
       {
         factor: "Cyclone/Flood",
@@ -485,6 +1516,21 @@ const regions = [
         description: "Delta region vulnerable to cyclonic storms and flooding.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "TN Rice Bonus",
+        type: "Price Support",
+        description: "Additional ₹3/kg bonus on paddy procurement",
+        benefit: "₹300/quintal extra",
+      },
+    ],
+    weatherMock: { avgTempC: 30, forecast: genForecast(30, 4) },
   },
   {
     district: "Guntur",
@@ -493,6 +1539,7 @@ const regions = [
     avgRainfallMM: 850,
     yieldMultiplier: 1.15,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 600,
     riskFactors: [
       {
         factor: "Pest Risk",
@@ -501,6 +1548,21 @@ const regions = [
           "Cotton and chili crops face pest pressure requiring intensive management.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "YSR Rythu Bharosa",
+        type: "Income Support",
+        description: "AP state farmer investment support",
+        benefit: "₹13,500/year",
+      },
+    ],
+    weatherMock: { avgTempC: 33, forecast: genForecast(33, 4) },
   },
   {
     district: "Patna",
@@ -509,6 +1571,7 @@ const regions = [
     avgRainfallMM: 1100,
     yieldMultiplier: 0.9,
     irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 650,
     riskFactors: [
       {
         factor: "Flood Risk",
@@ -523,6 +1586,21 @@ const regions = [
           "Limited cold storage and market access increases post-harvest losses.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "Bihar Krishi Input",
+        type: "Input Subsidy",
+        description: "Subsidy on seeds and fertilizers",
+        benefit: "Up to ₹3,000/acre",
+      },
+    ],
+    weatherMock: { avgTempC: 31, forecast: genForecast(31, 6) },
   },
   {
     district: "Bardhaman",
@@ -531,6 +1609,7 @@ const regions = [
     avgRainfallMM: 1400,
     yieldMultiplier: 1.2,
     irrigationAvailability: "Good",
+    waterAvailabilityMM: 950,
     riskFactors: [
       {
         factor: "Excess Rainfall",
@@ -539,6 +1618,21 @@ const regions = [
           "Heavy rainfall can cause waterlogging affecting crop roots.",
       },
     ],
+    govSchemes: [
+      {
+        name: "PM-KISAN",
+        type: "Income Support",
+        description: "Direct income support of ₹6,000/year",
+        benefit: "₹6,000/year",
+      },
+      {
+        name: "Krishak Bandhu",
+        type: "Income Support",
+        description: "WB state farmer support scheme",
+        benefit: "₹10,000/acre/year",
+      },
+    ],
+    weatherMock: { avgTempC: 29, forecast: genForecast(29, 7) },
   },
 ];
 
@@ -547,12 +1641,10 @@ const seedDB = async (): Promise<void> => {
     await mongoose.connect(process.env.MONGO_URI as string);
     console.log("✅ Connected to MongoDB");
 
-    // Clear existing data
     await Crop.deleteMany({});
     await Region.deleteMany({});
     console.log("🗑️  Cleared existing data");
 
-    // Insert seed data
     const insertedCrops = await Crop.insertMany(crops);
     const insertedRegions = await Region.insertMany(regions);
 

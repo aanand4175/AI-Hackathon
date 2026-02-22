@@ -20,13 +20,17 @@ const regionSchema = new Schema<IRegion>(
       required: true,
     },
     yieldMultiplier: {
-      type: Number, // 0.5 to 1.5 — multiplied to base yield
+      type: Number,
       default: 1.0,
     },
     irrigationAvailability: {
       type: String,
       enum: ["Good", "Moderate", "Poor"],
       default: "Moderate",
+    },
+    waterAvailabilityMM: {
+      type: Number,
+      default: 600,
     },
     riskFactors: [
       {
@@ -35,6 +39,25 @@ const regionSchema = new Schema<IRegion>(
         description: String,
       },
     ],
+    govSchemes: [
+      {
+        name: { type: String },
+        schemeType: { type: String },
+        description: { type: String },
+        benefit: { type: String },
+      },
+    ],
+    weatherMock: {
+      avgTempC: { type: Number, default: 30 },
+      forecast: [
+        {
+          day: String,
+          tempC: Number,
+          rainfallMM: Number,
+          condition: String,
+        },
+      ],
+    },
   },
   { timestamps: true },
 );

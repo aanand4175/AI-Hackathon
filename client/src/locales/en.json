@@ -1,0 +1,35 @@
+{
+  "navbar": {
+    "title": "FarmProfit",
+    "home": "Home",
+    "estimator": "Estimator",
+    "recommendations": "Recommendations",
+    "compare": "Compare",
+    "heatmap": "Heatmap"
+  },
+  "home": {
+    "title": "Maximize Your Harvest Profit",
+    "subtitle": "Data-driven crop recommendations, multi-year profit projections, and real-time market insights tailored for Indian farmers.",
+    "start_btn": "Calculate Profit",
+    "features_title": "Why FarmProfit?",
+    "feat_1_title": "Precision Estimator",
+    "feat_1_desc": "Calculate profit with pinpoint accuracy based on your land size, soil type, and live market prices.",
+    "feat_2_title": "Smart Recommendations",
+    "feat_2_desc": "Get AI-driven crop suggestions prioritizing ROI, suitability, and pest resistance.",
+    "feat_3_title": "Deep Risk Analysis",
+    "feat_3_desc": "Understand vulnerabilities with our 5-factor risk model (Weather, Price, Pest, Water, Infrastructure)."
+  },
+  "estimator": {
+    "title": "Profitability Estimator",
+    "step1": "Crop & Location",
+    "crop_label": "Select Crop",
+    "region_label": "Select Region",
+    "step2": "Farm Details",
+    "land_size_label": "Land Size",
+    "irrigation_label": "Irrigation Method",
+    "price_source_label": "Market Price Source",
+    "step3": "Input Costs",
+    "generate_btn": "Generate Intelligent Report",
+    "generating": "Analyzing Data..."
+  }
+}

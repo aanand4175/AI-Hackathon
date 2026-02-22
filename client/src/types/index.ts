@@ -1,35 +1,16 @@
 // ============================================
-// Farmer Profitability Estimator — TypeScript Types
+// Farmer Profitability Estimator — Frontend Types
 // ============================================
-
-// --- Crop ---
-export interface CropDefaultCosts {
-  seeds: number;
-  fertilizer: number;
-  pesticide: number;
-  labor: number;
-  irrigation: number;
-  transport: number;
-  misc: number;
-}
 
 export interface Crop {
   _id: string;
   name: string;
-  category: "Cereal" | "Cash Crop" | "Oilseed" | "Pulse" | "Millet";
+  category: string;
   baseYieldPerAcre: number;
-  growthDurationDays: number;
-  waterRequirement: "Low" | "Medium" | "High";
   mspPerQuintal: number;
   marketPricePerQuintal: number;
-  defaultCosts: CropDefaultCosts;
-}
-
-// --- Region ---
-export interface RiskFactorItem {
-  factor: string;
-  severity: "Low" | "Medium" | "High";
-  description: string;
+  waterRequirement: string;
+  marketDemand?: string;
 }
 
 export interface Region {
@@ -39,30 +20,28 @@ export interface Region {
   soilType: string;
   avgRainfallMM: number;
   yieldMultiplier: number;
-  irrigationAvailability: "Good" | "Moderate" | "Poor";
-  riskFactors: RiskFactorItem[];
+  irrigationAvailability: string;
 }
 
-// --- Estimate Request ---
-export interface CostInputs {
-  seeds?: number | "";
-  fertilizer?: number | "";
-  pesticide?: number | "";
-  labor?: number | "";
-  irrigation?: number | "";
-  transport?: number | "";
-  misc?: number | "";
-}
-
-export interface EstimateRequest {
+export interface FormData {
   cropId: string;
   regionId: string;
   landSize: number;
   irrigationType: string;
-  costs: Record<string, number>;
+  priceSource: string;
+  costs: {
+    seeds: number;
+    fertilizer: number;
+    pesticide: number;
+    labor: number;
+    irrigation: number;
+    transport: number;
+    misc: number;
+  };
 }
 
-// --- Estimate Response ---
+// --- Enhanced Result Types ---
+
 export interface YieldEstimate {
   baseYieldPerAcre: number;
   regionMultiplier: number;
@@ -101,18 +80,95 @@ export interface ProfitEstimate {
   priceDifferencePercent: number;
 }
 
+export interface RiskCategoryScore {
+  category: string;
+  score: number;
+  reason: string;
+}
+
 export interface RiskFactorDetail {
   factor: string;
-  severity: "Low" | "Medium" | "High";
+  severity: string;
   description: string;
   impact: number;
 }
 
 export interface RiskAssessment {
   riskScore: number;
-  riskLevel: "Low" | "Moderate" | "High";
+  riskLevel: string;
   riskFactors: RiskFactorDetail[];
+  riskCategories: RiskCategoryScore[];
   totalFactors: number;
+}
+
+export interface ConfidenceScore {
+  overall: number;
+  breakdown: {
+    weatherStability: number;
+    marketPriceStability: number;
+    soilCondition: number;
+    irrigationReliability: number;
+  };
+  label: string;
+}
+
+export interface WaterMatch {
+  cropWaterNeedMM: number;
+  regionWaterAvailableMM: number;
+  deficitMM: number;
+  matchPercent: number;
+  status: string;
+}
+
+export interface PestPrediction {
+  name: string;
+  probability: number;
+  severity: string;
+  season: string;
+  description: string;
+}
+
+export interface CropSuitability {
+  overall: number;
+  soilMatch: number;
+  rainfallMatch: number;
+  temperatureMatch: number;
+  irrigationMatch: number;
+  pestResistance: number;
+}
+
+export interface CropRotation {
+  nextCrop: string;
+  benefit: string;
+}
+
+export interface GovScheme {
+  name: string;
+  schemeType: string;
+  description: string;
+  benefit: string;
+}
+
+export interface MspHistory {
+  year: number;
+  msp: number;
+}
+
+export interface YearProjection {
+  year: number;
+  projectedMSP: number;
+  projectedCost: number;
+  projectedProfit: number;
+  projectedROI: number;
+}
+
+export interface SensitivityResult {
+  label: string;
+  change: string;
+  originalProfit: number;
+  newProfit: number;
+  impact: number;
+  impactPercent: number;
 }
 
 export interface Recommendation {
@@ -123,42 +179,41 @@ export interface Recommendation {
   riskLevel: string;
 }
 
-export interface EstimateSummary {
-  crop: string;
-  category: string;
-  region: string;
-  landSize: string;
-  irrigationType: string;
-  growthDuration: string;
-}
-
 export interface EstimateResult {
-  summary: EstimateSummary;
+  summary: {
+    crop: string;
+    category: string;
+    region: string;
+    landSize: string;
+    irrigationType: string;
+    growthDuration: string;
+  };
   yield: YieldEstimate;
   cost: CostEstimate;
   profit: ProfitEstimate;
   risk: RiskAssessment;
   recommendation: Recommendation;
+  confidence: ConfidenceScore;
+  waterMatch: WaterMatch;
+  pestPredictions: PestPrediction[];
+  cropSuitability: CropSuitability;
+  cropRotation: CropRotation[];
+  govSchemes: GovScheme[];
+  costTips: string[];
+  multiYear: YearProjection[];
+  sensitivity: SensitivityResult[];
+  mspHistory: MspHistory[];
+  marketDemand: string;
 }
 
-// --- API Response ---
-export interface ApiResponse<T> {
-  success: boolean;
-  count?: number;
-  data: T;
-  message?: string;
-}
-
-// --- Form State ---
-export interface FormData {
+export interface CropRecommendation {
   cropId: string;
-  regionId: string;
-  landSize: string;
-  irrigationType: string;
-  costs: CostInputs;
-}
-
-export interface IrrigationType {
-  value: string;
-  label: string;
+  cropName: string;
+  category: string;
+  estimatedProfit: number;
+  roi: number;
+  riskLevel: string;
+  confidence: number;
+  suitabilityScore: number;
+  marketDemand: string;
 }

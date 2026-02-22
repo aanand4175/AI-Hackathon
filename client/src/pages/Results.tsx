@@ -1,370 +1,841 @@
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { EstimateResult } from "../types";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Legend,
+  AreaChart,
+  Area,
+} from "recharts";
+// @ts-ignore
+import jsPDF from "jspdf";
+// @ts-ignore
+import autoTable from "jspdf-autotable";
+
+const COLORS = [
+  "#06d6a0",
+  "#118ab2",
+  "#ef476f",
+  "#ffd166",
+  "#073b4c",
+  "#8338ec",
+  "#ff6b6b",
+  "#4ecdc4",
+];
 
 const Results: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const estimate = (location.state as { estimate?: EstimateResult })?.estimate;
+  const result = location.state?.result as EstimateResult | undefined;
 
-  if (!estimate) {
+  if (!result) {
     return (
-      <div className="error-container">
-        <div className="error-icon">📊</div>
-        <h2>No Estimate Data</h2>
-        <p>Please use the estimator form to generate a profitability report.</p>
-        <Link to="/estimator" className="btn btn-primary">
+      <div
+        className="container"
+        style={{ textAlign: "center", padding: "60px 20px" }}
+      >
+        <h2>No estimate data found</h2>
+        <p>Please go back and fill out the estimator form.</p>
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/estimator")}
+        >
           Go to Estimator
-        </Link>
+        </button>
       </div>
     );
   }
 
   const {
     summary,
-    yield: yieldData,
+    yield: yld,
     cost,
     profit,
     risk,
     recommendation,
-  } = estimate;
+    confidence,
+    waterMatch,
+    pestPredictions,
+    cropSuitability,
+    cropRotation,
+    govSchemes,
+    costTips,
+    multiYear,
+    sensitivity,
+    mspHistory,
+    marketDemand,
+  } = result;
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getVerdictClass = (): string => {
-    if (recommendation.verdict === "Highly Recommended") return "positive";
-    if (recommendation.verdict === "Not Recommended") return "negative";
-    return "warning";
-  };
-
-  const maxPrice: number = Math.max(
-    profit.mspPerQuintal,
-    profit.marketPricePerQuintal,
+  // Prepare chart data
+  const costBreakdownData = Object.entries(cost.costBreakdown).map(
+    ([key, val]) => ({
+      name: key.charAt(0).toUpperCase() + key.slice(1),
+      perAcre: val.perAcre,
+      total: val.total,
+    }),
   );
 
+  const revenueVsCostData = [
+    { name: "Total Cost", value: profit.totalCost, fill: "#ef476f" },
+    { name: "Revenue (MSP)", value: profit.revenueAtMSP, fill: "#06d6a0" },
+    {
+      name: "Revenue (Market)",
+      value: profit.revenueAtMarket,
+      fill: "#118ab2",
+    },
+  ];
+
+  const suitabilityData = [
+    { param: "Soil", score: cropSuitability.soilMatch },
+    { param: "Rainfall", score: cropSuitability.rainfallMatch },
+    { param: "Temperature", score: cropSuitability.temperatureMatch },
+    { param: "Irrigation", score: cropSuitability.irrigationMatch },
+    { param: "Pest Resist.", score: cropSuitability.pestResistance },
+  ];
+
+  const getRiskColor = (score: number) => {
+    if (score <= 30) return "#06d6a0";
+    if (score <= 60) return "#ffd166";
+    return "#ef476f";
+  };
+
+  const getConfidenceColor = (label: string) => {
+    if (label === "High") return "#06d6a0";
+    if (label === "Medium") return "#ffd166";
+    return "#ef476f";
+  };
+
+  const formatINR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
+
+  // PDF Export
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.setTextColor(6, 214, 160);
+    doc.text("Farmer Profitability Report", 14, 22);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleDateString("en-IN")}`, 14, 30);
+
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.text("Summary", 14, 42);
+    autoTable(doc, {
+      startY: 46,
+      head: [["Parameter", "Value"]],
+      body: [
+        ["Crop", `${summary.crop} (${summary.category})`],
+        ["Region", summary.region],
+        ["Land Size", summary.landSize],
+        ["Irrigation", summary.irrigationType],
+        ["Growth Duration", summary.growthDuration],
+        ["Market Demand", marketDemand],
+      ],
+      theme: "striped",
+    });
+
+    doc.text("Yield & Profit", 14, (doc as any).lastAutoTable.finalY + 12);
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 16,
+      head: [["Metric", "Value"]],
+      body: [
+        ["Total Yield", `${yld.totalYield} quintals`],
+        ["Revenue (MSP)", formatINR(profit.revenueAtMSP)],
+        ["Revenue (Market)", formatINR(profit.revenueAtMarket)],
+        ["Total Cost", formatINR(profit.totalCost)],
+        ["Profit (MSP)", formatINR(profit.profitAtMSP)],
+        ["Profit (Market)", formatINR(profit.profitAtMarket)],
+        ["ROI (MSP)", `${profit.roiAtMSP}%`],
+        ["ROI (Market)", `${profit.roiAtMarket}%`],
+      ],
+      theme: "striped",
+    });
+
+    doc.text("Risk Assessment", 14, (doc as any).lastAutoTable.finalY + 12);
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 16,
+      head: [["Risk Category", "Score", "Reason"]],
+      body: risk.riskCategories.map((rc) => [
+        rc.category,
+        `${rc.score}%`,
+        rc.reason,
+      ]),
+      theme: "striped",
+    });
+
+    doc.text(
+      `Confidence: ${confidence.overall}% (${confidence.label})`,
+      14,
+      (doc as any).lastAutoTable.finalY + 12,
+    );
+    doc.text(
+      `Verdict: ${recommendation.verdict}`,
+      14,
+      (doc as any).lastAutoTable.finalY + 20,
+    );
+
+    doc.addPage();
+    doc.text("Cost Breakdown", 14, 22);
+    autoTable(doc, {
+      startY: 26,
+      head: [["Item", "Per Acre (₹)", "Total (₹)"]],
+      body: costBreakdownData.map((c) => [
+        c.name,
+        c.perAcre.toLocaleString(),
+        c.total.toLocaleString(),
+      ]),
+      theme: "striped",
+    });
+
+    doc.text(
+      "Sensitivity Analysis",
+      14,
+      (doc as any).lastAutoTable.finalY + 12,
+    );
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 16,
+      head: [["Scenario", "Original Profit", "New Profit", "Impact"]],
+      body: sensitivity.map((s) => [
+        s.label,
+        formatINR(s.originalProfit),
+        formatINR(s.newProfit),
+        `${s.impactPercent > 0 ? "+" : ""}${s.impactPercent}%`,
+      ]),
+      theme: "striped",
+    });
+
+    if (govSchemes.length > 0) {
+      doc.text(
+        "Government Schemes",
+        14,
+        (doc as any).lastAutoTable.finalY + 12,
+      );
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 16,
+        head: [["Scheme", "Type", "Benefit"]],
+        body: govSchemes.map((g) => [g.name, g.schemeType, g.benefit]),
+        theme: "striped",
+      });
+    }
+
+    doc.text(
+      `Crop Suitability: ${cropSuitability.overall}/100`,
+      14,
+      (doc as any).lastAutoTable.finalY + 12,
+    );
+    doc.text(
+      `Water Match: ${waterMatch.matchPercent}% (${waterMatch.status})`,
+      14,
+      (doc as any).lastAutoTable.finalY + 20,
+    );
+
+    doc.save(`${summary.crop.replace(/[^a-zA-Z]/g, "_")}_Report.pdf`);
+  };
+
   return (
-    <main className="results-page">
+    <div className="results-page">
+      {/* Header */}
       <div className="results-header">
-        <h1>Profitability Report</h1>
-        <p>
-          Detailed analysis for {summary.crop} in {summary.region}
-        </p>
-      </div>
-
-      {/* Summary Info */}
-      <div className="info-grid" style={{ marginBottom: "1.5rem" }}>
-        <div className="info-item">
-          <div className="info-label">Crop</div>
-          <div className="info-value">{summary.crop}</div>
-        </div>
-        <div className="info-item">
-          <div className="info-label">Region</div>
-          <div className="info-value">{summary.region}</div>
-        </div>
-        <div className="info-item">
-          <div className="info-label">Land Size</div>
-          <div className="info-value">{summary.landSize}</div>
-        </div>
-        <div className="info-item">
-          <div className="info-label">Irrigation</div>
-          <div className="info-value" style={{ textTransform: "capitalize" }}>
-            {summary.irrigationType}
-          </div>
-        </div>
-        <div className="info-item">
-          <div className="info-label">Growth Period</div>
-          <div className="info-value">{summary.growthDuration}</div>
-        </div>
-        <div className="info-item">
-          <div className="info-label">Category</div>
-          <div className="info-value">{summary.category}</div>
-        </div>
-      </div>
-
-      {/* Main Profit Card */}
-      <div
-        className={`summary-card ${profit.isProfitableAtMSP ? "profit" : "loss"}`}
-      >
-        <div className={`verdict-badge ${getVerdictClass()}`}>
-          {recommendation.verdict === "Highly Recommended" && "✅"}
-          {recommendation.verdict === "Not Recommended" && "❌"}
-          {!["Highly Recommended", "Not Recommended"].includes(
-            recommendation.verdict,
-          ) && "⚠️"}{" "}
-          {recommendation.verdict}
-        </div>
-
-        <div
-          className={`profit-amount ${profit.profitAtMSP >= 0 ? "positive" : "negative"}`}
-        >
-          {profit.profitAtMSP >= 0 ? "+" : ""}
-          {formatCurrency(profit.profitAtMSP)}
-        </div>
-        <div className="profit-label">
-          Net Profit/Loss at MSP (Government Rate)
-        </div>
-
-        <div className="stats-grid">
-          <div className="stat-item">
-            <div className="stat-label">Total Revenue (MSP)</div>
-            <div className="stat-value green">
-              {formatCurrency(profit.revenueAtMSP)}
-            </div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-label">Total Revenue (Market)</div>
-            <div className="stat-value blue">
-              {formatCurrency(profit.revenueAtMarket)}
-            </div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-label">Total Cost</div>
-            <div className="stat-value red">
-              {formatCurrency(profit.totalCost)}
-            </div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-label">ROI at MSP</div>
-            <div
-              className={`stat-value ${profit.roiAtMSP >= 0 ? "green" : "red"}`}
-            >
-              {profit.roiAtMSP >= 0 ? "+" : ""}
-              {profit.roiAtMSP}%
-            </div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-label">Market Profit</div>
-            <div
-              className={`stat-value ${profit.profitAtMarket >= 0 ? "green" : "red"}`}
-            >
-              {profit.profitAtMarket >= 0 ? "+" : ""}
-              {formatCurrency(profit.profitAtMarket)}
-            </div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-label">Expected Yield</div>
-            <div className="stat-value">{yieldData.totalYield} qtl</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Details Grid */}
-      <div className="details-grid">
-        {/* Cost Breakdown */}
-        <div className="detail-card">
-          <h3>💸 Cost Breakdown</h3>
-          <table className="cost-table">
-            <tbody>
-              {Object.entries(cost.costBreakdown).map(([key, val]) => (
-                <tr key={key}>
-                  <td style={{ textTransform: "capitalize" }}>{key}</td>
-                  <td>{formatCurrency(val.total)}</td>
-                </tr>
-              ))}
-              <tr className="total">
-                <td>Total Cost</td>
-                <td>{formatCurrency(cost.totalCost)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p className="form-hint" style={{ marginTop: "0.75rem" }}>
-            Cost per acre: {formatCurrency(cost.totalPerAcre)}
-          </p>
-        </div>
-
-        {/* MSP vs Market Price */}
-        <div className="detail-card">
-          <h3>📊 Price Comparison</h3>
-
-          <div className="price-bar">
-            <div className="price-bar-label">
-              <span>MSP (Govt Rate)</span>
-              <span style={{ color: "var(--green-400)" }}>
-                ₹{profit.mspPerQuintal}/qtl
-              </span>
-            </div>
-            <div className="price-bar-track">
-              <div
-                className="price-bar-fill green"
-                style={{ width: `${(profit.mspPerQuintal / maxPrice) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-
-          <div className="price-bar">
-            <div className="price-bar-label">
-              <span>Market Price</span>
-              <span style={{ color: "var(--blue-400)" }}>
-                ₹{profit.marketPricePerQuintal}/qtl
-              </span>
-            </div>
-            <div className="price-bar-track">
-              <div
-                className="price-bar-fill blue"
-                style={{
-                  width: `${(profit.marketPricePerQuintal / maxPrice) * 100}%`,
-                }}
-              ></div>
-            </div>
-          </div>
-
+        <div className="container">
           <div
             style={{
-              marginTop: "1rem",
-              padding: "0.75rem",
-              background: "var(--bg-glass)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "0.85rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "16px",
             }}
           >
-            <p style={{ color: "var(--text-secondary)" }}>
-              Market price is{" "}
-              <strong
-                style={{
-                  color:
-                    profit.priceDifference >= 0
-                      ? "var(--green-400)"
-                      : "var(--red-400)",
-                }}
+            <div>
+              <h1 style={{ margin: 0 }}>📊 {summary.crop}</h1>
+              <p className="results-subtitle">
+                {summary.region} • {summary.landSize} • {summary.irrigationType}{" "}
+                irrigation
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                className="btn btn-outline"
+                onClick={() => navigate("/estimator")}
               >
-                {profit.priceDifference >= 0 ? "+" : ""}₹
-                {profit.priceDifference}
-              </strong>{" "}
-              ({profit.priceDifferencePercent}%) compared to MSP
-            </p>
-          </div>
-
-          {/* Yield Info */}
-          <div style={{ marginTop: "1rem" }}>
-            <h4
-              style={{
-                fontSize: "0.9rem",
-                fontWeight: 600,
-                marginBottom: "0.5rem",
-              }}
-            >
-              🌾 Yield Details
-            </h4>
-            <table className="cost-table">
-              <tbody>
-                <tr>
-                  <td>Base Yield/Acre</td>
-                  <td>{yieldData.baseYieldPerAcre} qtl</td>
-                </tr>
-                <tr>
-                  <td>Region Multiplier</td>
-                  <td>×{yieldData.regionMultiplier}</td>
-                </tr>
-                <tr>
-                  <td>Irrigation Multiplier</td>
-                  <td>×{yieldData.irrigationMultiplier}</td>
-                </tr>
-                <tr>
-                  <td>Adjusted Yield/Acre</td>
-                  <td>{yieldData.adjustedYieldPerAcre} qtl</td>
-                </tr>
-                <tr className="total">
-                  <td>Total Yield</td>
-                  <td>{yieldData.totalYield} qtl</td>
-                </tr>
-              </tbody>
-            </table>
+                ← New Estimate
+              </button>
+              <button className="btn btn-primary" onClick={downloadPDF}>
+                📄 Download PDF
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Risk Assessment */}
-      <div className="risk-card">
-        <div className="risk-header">
-          <h3>⚠️ Risk Assessment</h3>
-          <div className={`risk-score-circle ${risk.riskLevel.toLowerCase()}`}>
-            {risk.riskScore}
+      <div className="container results-grid">
+        {/* Verdict Card */}
+        <div
+          className="result-card verdict-card"
+          style={{ gridColumn: "1 / -1" }}
+        >
+          <div className="verdict-row">
+            <div className="verdict-main">
+              <span
+                className={`verdict-badge ${recommendation.verdict === "Highly Recommended" ? "badge-green" : recommendation.verdict === "Not Recommended" ? "badge-red" : "badge-yellow"}`}
+              >
+                {recommendation.verdict}
+              </span>
+              <p style={{ marginTop: "8px", opacity: 0.85 }}>
+                {recommendation.recommendation}
+              </p>
+            </div>
+            <div className="confidence-meter">
+              <div
+                className="confidence-circle"
+                style={{ borderColor: getConfidenceColor(confidence.label) }}
+              >
+                <span className="confidence-value">{confidence.overall}%</span>
+                <span className="confidence-label">Confidence</span>
+              </div>
+            </div>
+            <div className="suitability-meter">
+              <div
+                className="confidence-circle"
+                style={{
+                  borderColor:
+                    cropSuitability.overall >= 70
+                      ? "#06d6a0"
+                      : cropSuitability.overall >= 45
+                        ? "#ffd166"
+                        : "#ef476f",
+                }}
+              >
+                <span className="confidence-value">
+                  {cropSuitability.overall}
+                </span>
+                <span className="confidence-label">Suitability</span>
+              </div>
+            </div>
           </div>
         </div>
-        <p
-          style={{
-            color: "var(--text-secondary)",
-            marginBottom: "1rem",
-            fontSize: "0.9rem",
-          }}
-        >
-          Risk Level:{" "}
-          <strong
-            style={{
-              color:
-                risk.riskLevel === "Low"
-                  ? "var(--green-400)"
-                  : risk.riskLevel === "Moderate"
-                    ? "var(--amber-400)"
-                    : "var(--red-400)",
-            }}
-          >
-            {risk.riskLevel}
-          </strong>{" "}
-          — {risk.totalFactors} risk factor{risk.totalFactors !== 1 ? "s" : ""}{" "}
-          identified
-        </p>
 
-        {risk.riskFactors.length > 0 && (
-          <div className="risk-factors-list">
-            {risk.riskFactors.map((rf, index) => (
-              <div className="risk-factor-item" key={index}>
-                <div
-                  className={`risk-factor-severity ${rf.severity.toLowerCase()}`}
-                ></div>
-                <div className="risk-factor-content">
-                  <h4>
-                    {rf.factor}{" "}
-                    <span
-                      style={{
-                        fontWeight: 400,
-                        color: "var(--text-muted)",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      ({rf.severity})
+        {/* Profit Summary */}
+        <div className="result-card">
+          <h3>💰 Profit Summary</h3>
+          <div className="stat-grid">
+            <div className="stat-item">
+              <span className="stat-label">Revenue (MSP)</span>
+              <span className="stat-value green">
+                {formatINR(profit.revenueAtMSP)}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Revenue (Market)</span>
+              <span className="stat-value blue">
+                {formatINR(profit.revenueAtMarket)}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Total Cost</span>
+              <span className="stat-value red">
+                {formatINR(profit.totalCost)}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Net Profit (MSP)</span>
+              <span
+                className={`stat-value ${profit.profitAtMSP >= 0 ? "green" : "red"}`}
+              >
+                {formatINR(profit.profitAtMSP)}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Net Profit (Market)</span>
+              <span
+                className={`stat-value ${profit.profitAtMarket >= 0 ? "green" : "red"}`}
+              >
+                {formatINR(profit.profitAtMarket)}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">ROI (MSP)</span>
+              <span className="stat-value">{profit.roiAtMSP}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Yield Summary */}
+        <div className="result-card">
+          <h3>🌾 Yield Estimate</h3>
+          <div className="stat-grid">
+            <div className="stat-item">
+              <span className="stat-label">Base Yield/Acre</span>
+              <span className="stat-value">{yld.baseYieldPerAcre} qtl</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Region Multiplier</span>
+              <span className="stat-value">×{yld.regionMultiplier}</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Irrigation Boost</span>
+              <span className="stat-value">×{yld.irrigationMultiplier}</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Adjusted/Acre</span>
+              <span className="stat-value">{yld.adjustedYieldPerAcre} qtl</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Total Yield</span>
+              <span className="stat-value green">
+                {yld.totalYield} quintals
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">Market Demand</span>
+              <span
+                className={`stat-value ${marketDemand === "High" ? "green" : marketDemand === "Low" ? "red" : ""}`}
+              >
+                {marketDemand}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Revenue vs Cost Chart */}
+        <div className="result-card">
+          <h3>📊 Revenue vs Cost</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={revenueVsCostData}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.1)"
+              />
+              <XAxis dataKey="name" stroke="#aaa" fontSize={12} />
+              <YAxis
+                stroke="#aaa"
+                fontSize={11}
+                tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                formatter={(v: number) => formatINR(v)}
+                contentStyle={{
+                  background: "#1a1a2e",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}
+              />
+              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                {revenueVsCostData.map((entry, i) => (
+                  <Cell key={i} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Cost Breakdown Pie */}
+        <div className="result-card">
+          <h3>🧾 Cost Breakdown</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie
+                data={costBreakdownData}
+                dataKey="total"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                label={({ name, percent }: { name: string; percent: number }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
+                labelLine={false}
+                fontSize={11}
+              >
+                {costBreakdownData.map((_, i) => (
+                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(v: number) => formatINR(v)}
+                contentStyle={{
+                  background: "#1a1a2e",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Risk Analysis Table */}
+        <div className="result-card">
+          <h3>
+            ⚠️ Risk Analysis{" "}
+            <span
+              className={`verdict-badge ${risk.riskLevel === "Low" ? "badge-green" : risk.riskLevel === "High" ? "badge-red" : "badge-yellow"}`}
+              style={{ fontSize: "0.7em", marginLeft: "8px" }}
+            >
+              Score: {risk.riskScore}/10
+            </span>
+          </h3>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Risk Category</th>
+                <th>Score</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {risk.riskCategories.map((rc, i) => (
+                <tr key={i}>
+                  <td>{rc.category}</td>
+                  <td>
+                    <span className="risk-bar">
+                      <span
+                        className="risk-fill"
+                        style={{
+                          width: `${rc.score}%`,
+                          background: getRiskColor(rc.score),
+                        }}
+                      ></span>
+                      <span className="risk-text">{rc.score}%</span>
                     </span>
-                  </h4>
-                  <p>{rf.description}</p>
+                  </td>
+                  <td style={{ fontSize: "0.85em", opacity: 0.8 }}>
+                    {rc.reason}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Confidence Breakdown */}
+        <div className="result-card">
+          <h3>🎯 Confidence Breakdown</h3>
+          <div className="confidence-bars">
+            {Object.entries(confidence.breakdown).map(([key, val]) => (
+              <div key={key} className="conf-bar-row">
+                <span className="conf-label">
+                  {key.replace(/([A-Z])/g, " $1").trim()}
+                </span>
+                <div className="conf-bar-track">
+                  <div
+                    className="conf-bar-fill"
+                    style={{
+                      width: `${val}%`,
+                      background:
+                        val >= 70
+                          ? "#06d6a0"
+                          : val >= 45
+                            ? "#ffd166"
+                            : "#ef476f",
+                    }}
+                  ></div>
                 </div>
+                <span className="conf-val">{val}%</span>
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Crop Suitability Radar */}
+        <div className="result-card">
+          <h3>🧬 Crop Suitability Score: {cropSuitability.overall}/100</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <RadarChart data={suitabilityData}>
+              <PolarGrid stroke="rgba(255,255,255,0.15)" />
+              <PolarAngleAxis dataKey="param" stroke="#aaa" fontSize={12} />
+              <PolarRadiusAxis
+                angle={30}
+                domain={[0, 100]}
+                stroke="rgba(255,255,255,0.1)"
+                fontSize={10}
+              />
+              <Radar
+                name="Score"
+                dataKey="score"
+                stroke="#06d6a0"
+                fill="#06d6a0"
+                fillOpacity={0.25}
+                strokeWidth={2}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Water Match */}
+        <div className="result-card">
+          <h3>💧 Water Requirement Match</h3>
+          <div className="water-match">
+            <div className="water-stat">
+              <span className="stat-label">Crop Needs</span>
+              <span className="stat-value">{waterMatch.cropWaterNeedMM}mm</span>
+            </div>
+            <div className="water-stat">
+              <span className="stat-label">Available</span>
+              <span className="stat-value">
+                {waterMatch.regionWaterAvailableMM}mm
+              </span>
+            </div>
+            <div className="water-stat">
+              <span className="stat-label">Match</span>
+              <span
+                className={`stat-value ${waterMatch.matchPercent >= 80 ? "green" : waterMatch.matchPercent >= 50 ? "" : "red"}`}
+              >
+                {waterMatch.matchPercent}%
+              </span>
+            </div>
+            <div className="water-stat">
+              <span className="stat-label">Status</span>
+              <span
+                className={`verdict-badge ${waterMatch.status === "Surplus" || waterMatch.status === "Adequate" ? "badge-green" : waterMatch.status === "Deficit" ? "badge-yellow" : "badge-red"}`}
+              >
+                {waterMatch.status}
+              </span>
+            </div>
+          </div>
+          {waterMatch.deficitMM > 0 && (
+            <p className="water-deficit-note">
+              ⚠️ Water deficit of {waterMatch.deficitMM}mm — irrigation required
+              to meet crop needs.
+            </p>
+          )}
+        </div>
+
+        {/* MSP Trend Chart */}
+        {mspHistory.length > 0 && (
+          <div className="result-card">
+            <h3>📈 MSP Trend (5 Years)</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={mspHistory}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="rgba(255,255,255,0.1)"
+                />
+                <XAxis dataKey="year" stroke="#aaa" fontSize={12} />
+                <YAxis
+                  stroke="#aaa"
+                  fontSize={11}
+                  tickFormatter={(v: number) => `₹${v}`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#1a1a2e",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                  formatter={(v: number) => `₹${v}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="msp"
+                  stroke="#06d6a0"
+                  strokeWidth={3}
+                  dot={{ r: 5, fill: "#06d6a0" }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Multi-Year Projection */}
+        <div className="result-card">
+          <h3>📅 3-Year Profit Projection</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={multiYear}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.1)"
+              />
+              <XAxis dataKey="year" stroke="#aaa" fontSize={12} />
+              <YAxis
+                stroke="#aaa"
+                fontSize={11}
+                tickFormatter={(v: number) => `₹${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#1a1a2e",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}
+                formatter={(v: number) => formatINR(v)}
+              />
+              <Area
+                type="monotone"
+                dataKey="projectedProfit"
+                stroke="#118ab2"
+                fill="url(#profitGrad)"
+                strokeWidth={2}
+              />
+              <defs>
+                <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#118ab2" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#118ab2" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+            </AreaChart>
+          </ResponsiveContainer>
+          <table className="data-table" style={{ marginTop: "12px" }}>
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>MSP</th>
+                <th>Cost</th>
+                <th>Profit</th>
+                <th>ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {multiYear.map((y, i) => (
+                <tr key={i}>
+                  <td>{y.year}</td>
+                  <td>₹{y.projectedMSP}</td>
+                  <td>{formatINR(y.projectedCost)}</td>
+                  <td className={y.projectedProfit >= 0 ? "green" : "red"}>
+                    {formatINR(y.projectedProfit)}
+                  </td>
+                  <td>{y.projectedROI}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Sensitivity Analysis */}
+        <div className="result-card" style={{ gridColumn: "1 / -1" }}>
+          <h3>🔄 Sensitivity Analysis — "What If?"</h3>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Scenario</th>
+                <th>Change</th>
+                <th>Original Profit</th>
+                <th>New Profit</th>
+                <th>Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sensitivity.map((s, i) => (
+                <tr key={i}>
+                  <td>{s.label}</td>
+                  <td>{s.change}</td>
+                  <td>{formatINR(s.originalProfit)}</td>
+                  <td className={s.newProfit >= 0 ? "green" : "red"}>
+                    {formatINR(s.newProfit)}
+                  </td>
+                  <td className={s.impactPercent >= 0 ? "green" : "red"}>
+                    {s.impactPercent > 0 ? "+" : ""}
+                    {s.impactPercent}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pest Predictions */}
+        {pestPredictions.length > 0 && (
+          <div className="result-card">
+            <h3>🐛 Disease & Pest Predictions</h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Pest/Disease</th>
+                  <th>Probability</th>
+                  <th>Severity</th>
+                  <th>Season</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pestPredictions.map((p, i) => (
+                  <tr key={i}>
+                    <td>{p.name}</td>
+                    <td>
+                      <span className="risk-bar">
+                        <span
+                          className="risk-fill"
+                          style={{
+                            width: `${p.probability}%`,
+                            background: getRiskColor(p.probability),
+                          }}
+                        ></span>
+                        <span className="risk-text">{p.probability}%</span>
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`verdict-badge ${p.severity === "Low" ? "badge-green" : p.severity === "High" ? "badge-red" : "badge-yellow"}`}
+                      >
+                        {p.severity}
+                      </span>
+                    </td>
+                    <td>{p.season}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Crop Rotation */}
+        {cropRotation.length > 0 && (
+          <div className="result-card">
+            <h3>🔄 Crop Rotation Suggestions</h3>
+            <div className="rotation-list">
+              {cropRotation.map((r, i) => (
+                <div key={i} className="rotation-item">
+                  <span className="rotation-crop">→ {r.nextCrop}</span>
+                  <span className="rotation-benefit">{r.benefit}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Government Schemes */}
+        {govSchemes.length > 0 && (
+          <div className="result-card">
+            <h3>🏛️ Government Schemes Available</h3>
+            <div className="scheme-list">
+              {govSchemes.map((g, i) => (
+                <div key={i} className="scheme-item">
+                  <div className="scheme-header">
+                    <span className="scheme-name">{g.name}</span>
+                    <span className="scheme-type">{g.schemeType}</span>
+                  </div>
+                  <p className="scheme-desc">{g.description}</p>
+                  <span className="scheme-benefit">✅ {g.benefit}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Cost Tips */}
+        {costTips.length > 0 && (
+          <div className="result-card">
+            <h3>💡 Cost Saving Tips</h3>
+            <ul className="tips-list">
+              {costTips.map((tip, i) => (
+                <li key={i} className="tip-item">
+                  💡 {tip}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
-
-      {/* Recommendation */}
-      <div className="recommendation-card">
-        <h3>💡 Recommendation</h3>
-        <p className="recommendation-text">{recommendation.recommendation}</p>
-      </div>
-
-      {/* Actions */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          gap: "1rem",
-          marginTop: "2rem",
-          marginBottom: "2rem",
-        }}
-      >
-        <button
-          className="btn btn-secondary"
-          onClick={() => navigate("/estimator")}
-        >
-          ← New Estimate
-        </button>
-        <button className="btn btn-primary" onClick={() => window.print()}>
-          🖨️ Print Report
-        </button>
-      </div>
-    </main>
+    </div>
   );
 };
 

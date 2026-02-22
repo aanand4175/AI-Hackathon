@@ -5,6 +5,14 @@ import { calculateExpectedYield } from "../utils/yieldCalculator";
 import { calculateTotalCost } from "../utils/costModeling";
 import { calculateProfitability } from "../utils/profitCalculator";
 import { calculateRiskScore } from "../utils/riskScoring";
+import {
+  calculateConfidence,
+  calculateWaterMatch,
+  calculateSuitability,
+  calculateMultiYear,
+  calculateSensitivity,
+  getPestPredictions,
+} from "../utils/advancedEngines";
 import type {
   IEstimateRequestBody,
   IEstimateResult,
@@ -13,17 +21,16 @@ import type {
   IRecommendation,
 } from "../types";
 
-// @desc    Calculate full profitability estimate
+// @desc    Calculate full profitability estimate (ENHANCED)
 // @route   POST /api/estimate
 const calculateEstimate = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const { cropId, regionId, landSize, irrigationType, costs } =
+    const { cropId, regionId, landSize, irrigationType, priceSource, costs } =
       req.body as IEstimateRequestBody;
 
-    // Validate required fields
     if (!cropId || !regionId || !landSize || !irrigationType) {
       res.status(400).json({
         success: false,
@@ -32,16 +39,13 @@ const calculateEstimate = async (
       });
       return;
     }
-
     if (landSize <= 0) {
-      res.status(400).json({
-        success: false,
-        message: "Land size must be greater than 0",
-      });
+      res
+        .status(400)
+        .json({ success: false, message: "Land size must be greater than 0" });
       return;
     }
 
-    // Fetch crop and region data
     const crop = await Crop.findById(cropId);
     const region = await Region.findById(regionId);
 
@@ -54,7 +58,14 @@ const calculateEstimate = async (
       return;
     }
 
-    // 1. Calculate expected yield
+    // Determine price based on source
+    let activeMarketPrice = crop.marketPricePerQuintal;
+    if (priceSource === "mandi")
+      activeMarketPrice = crop.mandiPrice || crop.marketPricePerQuintal;
+    else if (priceSource === "online")
+      activeMarketPrice = crop.onlinePrice || crop.marketPricePerQuintal;
+
+    // 1. Yield
     const yieldEstimate = calculateExpectedYield(
       crop,
       region,
@@ -62,21 +73,57 @@ const calculateEstimate = async (
       irrigationType,
     );
 
-    // 2. Calculate total cost
+    // 2. Cost
     const costEstimate = calculateTotalCost(crop, landSize, costs || {});
 
-    // 3. Calculate profitability
+    // 3. Profit
     const profitEstimate = calculateProfitability(
       yieldEstimate.totalYield,
       crop.mspPerQuintal,
-      crop.marketPricePerQuintal,
+      activeMarketPrice,
       costEstimate.totalCost,
     );
 
-    // 4. Calculate risk score
+    // 4. Risk (enhanced with categories)
     const riskAssessment = calculateRiskScore(crop, region, irrigationType);
 
-    // 5. Build full estimate response
+    // 5. Confidence Score
+    const confidence = calculateConfidence(
+      crop,
+      region,
+      irrigationType,
+      riskAssessment,
+    );
+
+    // 6. Water Match
+    const waterMatch = calculateWaterMatch(crop, region);
+
+    // 7. Crop Suitability
+    const cropSuitability = calculateSuitability(crop, region, irrigationType);
+
+    // 8. Multi-Year Projection
+    const multiYear = calculateMultiYear(
+      profitEstimate.profitAtMSP,
+      crop.mspPerQuintal,
+      costEstimate.totalCost,
+      crop.mspHistory || [],
+      landSize,
+      yieldEstimate.totalYield,
+    );
+
+    // 9. Sensitivity Analysis
+    const sensitivity = calculateSensitivity(
+      yieldEstimate.totalYield,
+      crop.mspPerQuintal,
+      activeMarketPrice,
+      costEstimate.totalCost,
+      landSize,
+    );
+
+    // 10. Pest Predictions
+    const pestPredictions = getPestPredictions(crop);
+
+    // Build full response
     const estimate: IEstimateResult = {
       summary: {
         crop: crop.name,
@@ -91,6 +138,17 @@ const calculateEstimate = async (
       profit: profitEstimate,
       risk: riskAssessment,
       recommendation: generateRecommendation(profitEstimate, riskAssessment),
+      confidence,
+      waterMatch,
+      pestPredictions,
+      cropSuitability,
+      cropRotation: crop.cropRotation || [],
+      govSchemes: region.govSchemes || [],
+      costTips: crop.costTips || [],
+      multiYear,
+      sensitivity,
+      mspHistory: crop.mspHistory || [],
+      marketDemand: crop.marketDemand || "Medium",
     };
 
     res.json({ success: true, data: estimate });
@@ -101,15 +159,12 @@ const calculateEstimate = async (
   }
 };
 
-/**
- * Generate a text recommendation based on profit and risk
- */
 function generateRecommendation(
   profit: IProfitEstimate,
   risk: IRiskAssessment,
 ): IRecommendation {
-  let recommendation: string = "";
-  let verdict: string = "";
+  let recommendation = "";
+  let verdict = "";
 
   if (profit.isProfitableAtMSP && risk.riskLevel === "Low") {
     verdict = "Highly Recommended";
@@ -142,4 +197,261 @@ function generateRecommendation(
   };
 }
 
-export { calculateEstimate };
+// @desc    Get top 3 crop recommendations for a region
+// @route   GET /api/recommendations/:regionId
+const getRecommendations = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const region = await Region.findById(req.params.regionId);
+    if (!region) {
+      res.status(404).json({ success: false, message: "Region not found" });
+      return;
+    }
+
+    const crops = await Crop.find();
+    const recommendations = crops.map((crop) => {
+      const yieldEst = calculateExpectedYield(crop, region, 1, "drip"); // standard 1 acre, drip
+      const costEst = calculateTotalCost(crop, 1, {});
+      const profitEst = calculateProfitability(
+        yieldEst.totalYield,
+        crop.mspPerQuintal,
+        crop.marketPricePerQuintal,
+        costEst.totalCost,
+      );
+      const riskAss = calculateRiskScore(crop, region, "drip");
+      const confidence = calculateConfidence(crop, region, "drip", riskAss);
+      const suitability = calculateSuitability(crop, region, "drip");
+
+      return {
+        cropId: crop._id,
+        cropName: crop.name,
+        category: crop.category,
+        estimatedProfit: profitEst.profitAtMSP,
+        roi: profitEst.roiAtMSP,
+        riskLevel: riskAss.riskLevel,
+        confidence: confidence.overall,
+        suitabilityScore: suitability.overall,
+        marketDemand: crop.marketDemand || "Medium",
+      };
+    });
+
+    // Sort by profit
+    recommendations.sort((a, b) => b.estimatedProfit - a.estimatedProfit);
+
+    res.json({ success: true, data: recommendations.slice(0, 5) });
+  } catch (error: unknown) {
+    const err = error as Error;
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Compare two scenarios
+// @route   POST /api/compare
+const compareScenarios = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { cropId, regionId, scenarioA, scenarioB } = req.body;
+    if (!cropId || !regionId || !scenarioA || !scenarioB) {
+      res.status(400).json({
+        success: false,
+        message: "Provide cropId, regionId, scenarioA, scenarioB",
+      });
+      return;
+    }
+
+    const crop = await Crop.findById(cropId);
+    const region = await Region.findById(regionId);
+    if (!crop || !region) {
+      res
+        .status(404)
+        .json({ success: false, message: "Crop or Region not found" });
+      return;
+    }
+
+    const calcScenario = (s: {
+      landSize: number;
+      irrigationType: string;
+      costs?: Record<string, number>;
+    }) => {
+      const y = calculateExpectedYield(
+        crop,
+        region,
+        s.landSize,
+        s.irrigationType,
+      );
+      const c = calculateTotalCost(crop, s.landSize, s.costs || {});
+      const p = calculateProfitability(
+        y.totalYield,
+        crop.mspPerQuintal,
+        crop.marketPricePerQuintal,
+        c.totalCost,
+      );
+      const r = calculateRiskScore(crop, region, s.irrigationType);
+      const conf = calculateConfidence(crop, region, s.irrigationType, r);
+      return { yield: y, cost: c, profit: p, risk: r, confidence: conf };
+    };
+
+    const resultA = calcScenario(scenarioA);
+    const resultB = calcScenario(scenarioB);
+
+    res.json({
+      success: true,
+      data: {
+        crop: crop.name,
+        region: `${region.district}, ${region.state}`,
+        scenarioA: { ...scenarioA, ...resultA },
+        scenarioB: { ...scenarioB, ...resultB },
+        winner:
+          resultA.profit.profitAtMSP >= resultB.profit.profitAtMSP ? "A" : "B",
+        profitDifference: Math.abs(
+          resultA.profit.profitAtMSP - resultB.profit.profitAtMSP,
+        ),
+      },
+    });
+  } catch (error: unknown) {
+    const err = error as Error;
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Get MSP trend for a crop
+// @route   GET /api/crops/:id/msp-trend
+const getMspTrend = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const crop = await Crop.findById(req.params.id);
+    if (!crop) {
+      res.status(404).json({ success: false, message: "Crop not found" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        cropName: crop.name,
+        currentMSP: crop.mspPerQuintal,
+        currentMarket: crop.marketPricePerQuintal,
+        mandiPrice: crop.mandiPrice,
+        onlinePrice: crop.onlinePrice,
+        mspHistory: crop.mspHistory || [],
+        marketDemand: crop.marketDemand,
+      },
+    });
+  } catch (error: unknown) {
+    const err = error as Error;
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Land size profit heatmap
+// @route   POST /api/estimate/heatmap
+const landSizeHeatmap = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { cropId, regionId, irrigationType } = req.body;
+    const crop = await Crop.findById(cropId);
+    const region = await Region.findById(regionId);
+    if (!crop || !region) {
+      res
+        .status(404)
+        .json({ success: false, message: "Crop or Region not found" });
+      return;
+    }
+
+    const sizes = [0.5, 1, 2, 3, 5, 7, 10, 15, 20];
+    const data = sizes.map((size) => {
+      const y = calculateExpectedYield(
+        crop,
+        region,
+        size,
+        irrigationType || "drip",
+      );
+      const c = calculateTotalCost(crop, size, {});
+      const p = calculateProfitability(
+        y.totalYield,
+        crop.mspPerQuintal,
+        crop.marketPricePerQuintal,
+        c.totalCost,
+      );
+      return {
+        landSize: size,
+        profit: p.profitAtMSP,
+        revenue: p.revenueAtMSP,
+        cost: p.totalCost,
+        roi: p.roiAtMSP,
+      };
+    });
+
+    res.json({ success: true, data });
+  } catch (error: unknown) {
+    const err = error as Error;
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// @desc    Calculate sensitivity based on variation parameters
+// @route   POST /api/estimate/sensitivity
+const getSensitivity = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      cropId,
+      regionId,
+      landSize,
+      irrigationType,
+      priceVariation = 0,
+      yieldVariation = 0,
+      costVariation = 0,
+    } = req.body;
+    const crop = await Crop.findById(cropId);
+    const region = await Region.findById(regionId);
+    if (!crop || !region) {
+      res
+        .status(404)
+        .json({ success: false, message: "Crop or Region not found" });
+      return;
+    }
+
+    const baseYield = calculateExpectedYield(
+      crop,
+      region,
+      landSize,
+      irrigationType || "drip",
+    );
+    const baseCost = calculateTotalCost(crop, landSize, {});
+
+    // Apply variations
+    const adjustedYield = baseYield.totalYield * (1 + yieldVariation / 100);
+    const adjustedCost = baseCost.totalCost * (1 + costVariation / 100);
+    const adjustedMarketPrice =
+      crop.marketPricePerQuintal * (1 + priceVariation / 100);
+    const adjustedMSPPrice = crop.mspPerQuintal * (1 + priceVariation / 100);
+
+    const profit = calculateProfitability(
+      adjustedYield,
+      adjustedMSPPrice,
+      adjustedMarketPrice,
+      adjustedCost,
+    );
+
+    res.json({
+      success: true,
+      data: {
+        adjustedYield,
+        adjustedCost,
+        adjustedMarketPrice,
+        profit,
+      },
+    });
+  } catch (error: unknown) {
+    const err = error as Error;
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export {
+  calculateEstimate,
+  getRecommendations,
+  compareScenarios,
+  getMspTrend,
+  landSizeHeatmap,
+  getSensitivity,
+};
