@@ -7,7 +7,7 @@ const AdminLayout: React.FC = () => {
   const token = localStorage.getItem("adminToken");
 
   useEffect(() => {
-    if (!token && location.pathname !== "/admin/login") {
+    if (!token) {
       navigate("/admin/login");
     }
   }, [token, location, navigate]);
@@ -16,11 +16,6 @@ const AdminLayout: React.FC = () => {
     localStorage.removeItem("adminToken");
     navigate("/admin/login");
   };
-
-  // If we are unauthenticated and on the login page, just render the login page form
-  if (!token && location.pathname === "/admin/login") {
-    return <Outlet />;
-  }
 
   // Prevent flashing the protected layout if we are unauthenticated
   if (!token) return null;

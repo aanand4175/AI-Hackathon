@@ -37,7 +37,9 @@ const Home: React.FC = () => {
             Learn More
           </a>
           <Link
+            target="_blank"
             to="/admin/login"
+            onClick={() => localStorage.removeItem("adminToken")}
             className="btn btn-secondary btn-lg"
             style={{
               borderColor: "var(--primary-color)",

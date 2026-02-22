@@ -3,8 +3,25 @@ import { Admin } from "../models/Admin";
 import Crop from "../models/Crop";
 import Region from "../models/Region";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 const JWT_SECRET = process.env.JWT_SECRET || "farmprofit_admin_secret_key_2026";
+const DEMO_ADMIN_USERNAME = process.env.DEMO_ADMIN_USERNAME || "admin";
+const DEMO_ADMIN_PASSWORD =
+  process.env.DEMO_ADMIN_PASSWORD || "adminpassword123";
+
+const ensureDemoAdmin = async () => {
+  let admin = await Admin.findOne({ username: DEMO_ADMIN_USERNAME });
+  if (admin) return admin;
+
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(DEMO_ADMIN_PASSWORD, salt);
+  admin = await Admin.create({
+    username: DEMO_ADMIN_USERNAME,
+    passwordHash,
+  });
+  return admin;
+};
 
 export const loginAdmin = async (
   req: Request,
@@ -13,7 +30,14 @@ export const loginAdmin = async (
   try {
     const { username, password } = req.body;
 
-    const admin = await Admin.findOne({ username });
+    let admin = await Admin.findOne({ username });
+    if (
+      !admin &&
+      username === DEMO_ADMIN_USERNAME &&
+      password === DEMO_ADMIN_PASSWORD
+    ) {
+      admin = await ensureDemoAdmin();
+    }
     if (!admin) {
       res.status(401).json({ success: false, error: "Invalid credentials" });
       return;

@@ -2,9 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
+const DEMO_ADMIN_USERNAME = "admin";
+const DEMO_ADMIN_PASSWORD = "adminpassword123";
+
 const AdminLogin: React.FC = () => {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(DEMO_ADMIN_USERNAME);
+  const [password, setPassword] = useState(DEMO_ADMIN_PASSWORD);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -39,6 +42,9 @@ const AdminLogin: React.FC = () => {
           <h2>🌾 FarmProfit Admin</h2>
           <p>Secure Portal</p>
         </div>
+        <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          Demo login prefilled hai. Bas "Secure Login" click karein.
+        </p>
 
         {error && <div className="admin-error-box">{error}</div>}
 

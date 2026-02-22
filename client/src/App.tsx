@@ -29,11 +29,13 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        {/* Admin Routes */}
+        {/* Admin Auth Route */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+
+        {/* Admin Protected Routes */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="dashboard" element={<Dashboard />} />
-          <Route path="login" element={<AdminLogin />} />
           <Route path="crops" element={<CropsManager />} />
           <Route path="crops/new" element={<CropForm />} />
           <Route path="crops/:id" element={<CropForm />} />
