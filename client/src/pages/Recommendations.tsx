@@ -1,15 +1,77 @@
 import { useState, useEffect } from "react";
+import Select from "react-select";
 import { fetchRegions, fetchRecommendations } from "../services/api";
 import type { Region, CropRecommendation } from "../types";
 
+const customSelectStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    background: "rgba(0, 0, 0, 0.2)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "8px",
+    color: "#fff",
+    minHeight: "45px",
+    boxShadow: state.isFocused ? "0 0 0 1px #06d6a0" : "none",
+    "&:hover": {
+      border: "1px solid rgba(255, 255, 255, 0.4)",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    background: "#1a1a2e",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    zIndex: 100,
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    backgroundColor: state.isFocused ? "rgba(6, 214, 160, 0.2)" : "transparent",
+    color: "#fff",
+    cursor: "pointer",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+  }),
+  singleValue: (base: any) => ({
+    ...base,
+    color: "#fff",
+  }),
+  input: (base: any) => ({
+    ...base,
+    color: "#fff",
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }),
+};
+
 const Recommendations: React.FC = () => {
   const [regions, setRegions] = useState<Region[]>([]);
+  const [stateId, setStateId] = useState<string>("");
   const [selectedRegion, setSelectedRegion] = useState<string>("");
   const [recommendations, setRecommendations] = useState<CropRecommendation[]>(
     [],
   );
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+
+  const uniqueStates = Array.from(new Set(regions.map((r) => r.state))).sort();
+  const stateOptions = uniqueStates.map((st) => ({ value: st, label: st }));
+
+  const filteredRegions = stateId
+    ? regions.filter((r) => r.state === stateId)
+    : regions;
+
+  const regionOptions = filteredRegions.map((r) => ({
+    value: r._id,
+    label: `${r.district}`,
+    regionObj: r,
+  }));
+
+  useEffect(() => {
+    setSelectedRegion("");
+    setRecommendations([]);
+  }, [stateId]);
 
   useEffect(() => {
     const load = async () => {
@@ -67,26 +129,39 @@ const Recommendations: React.FC = () => {
         </div>
 
         {/* Region Selection */}
-        <div className="tools-controls">
+        <div className="tools-controls" style={{ alignItems: "flex-end" }}>
           <div className="form-group" style={{ flex: 1 }}>
-            <label>Select Your Region</label>
-            <select
-              className="form-control"
-              value={selectedRegion}
-              onChange={(e) => setSelectedRegion(e.target.value)}
-            >
-              <option value="">-- Select a region --</option>
-              {regions.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.district}, {r.state} — {r.soilType}
-                </option>
-              ))}
-            </select>
+            <label>1. Select State</label>
+            <Select
+              styles={customSelectStyles}
+              options={stateOptions}
+              isSearchable={true}
+              placeholder="🔍 Select State..."
+              value={stateOptions.find((o) => o.value === stateId) || null}
+              onChange={(selected) => setStateId(selected?.value || "")}
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>2. Select Region</label>
+            <Select
+              styles={customSelectStyles}
+              options={regionOptions}
+              isSearchable={true}
+              isDisabled={!stateId}
+              placeholder={
+                stateId ? "🔍 Select district..." : "Select State first"
+              }
+              value={
+                regionOptions.find((o) => o.value === selectedRegion) || null
+              }
+              onChange={(selected) => setSelectedRegion(selected?.value || "")}
+            />
           </div>
           <button
             className="btn btn-primary"
             onClick={handleFetch}
             disabled={!selectedRegion || loading}
+            style={{ height: "45px" }}
           >
             {loading ? "Analyzing..." : "🔍 Get Recommendations"}
           </button>
@@ -98,7 +173,7 @@ const Recommendations: React.FC = () => {
               📍 {regionObj.district}, {regionObj.state}
             </span>
             <span>🌍 Soil: {regionObj.soilType}</span>
-            <span>🌧️ Rainfall: {regionObj.avgRainfallMM}mm</span>
+            <span>🌧️ Annual Rainfall: {regionObj.avgRainfallMM}mm</span>
             <span>💧 Irrigation: {regionObj.irrigationAvailability}</span>
           </div>
         )}
@@ -124,7 +199,9 @@ const Recommendations: React.FC = () => {
 
                 <div className="rec-stats">
                   <div className="rec-stat">
-                    <span className="rec-stat-label">Est. Profit/Acre</span>
+                    <span className="rec-stat-label">
+                      Est. Profit/Acre <br /> (per cycle)
+                    </span>
                     <span
                       className={`rec-stat-value ${rec.estimatedProfit >= 0 ? "green" : "red"}`}
                     >

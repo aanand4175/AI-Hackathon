@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Select from "react-select";
 import { fetchCrops, fetchRegions, fetchHeatmap } from "../services/api";
 import type { Crop, Region } from "../types";
 import {
@@ -34,10 +35,42 @@ const COLORS_HEAT = [
   "#118ab2",
 ];
 
+const customSelectStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    background: "rgba(0, 0, 0, 0.2)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "8px",
+    color: "#fff",
+    minHeight: "45px",
+    boxShadow: state.isFocused ? "0 0 0 1px #06d6a0" : "none",
+    "&:hover": {
+      border: "1px solid rgba(255, 255, 255, 0.4)",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    background: "#1a1a2e",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    zIndex: 100,
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    backgroundColor: state.isFocused ? "rgba(6, 214, 160, 0.2)" : "transparent",
+    color: "#fff",
+    cursor: "pointer",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+  }),
+  singleValue: (base: any) => ({ ...base, color: "#fff" }),
+  input: (base: any) => ({ ...base, color: "#fff" }),
+};
+
 const Heatmap: React.FC = () => {
   const [crops, setCrops] = useState<Crop[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+  const [categoryId, setCategoryId] = useState("");
   const [cropId, setCropId] = useState("");
+  const [stateId, setStateId] = useState("");
   const [regionId, setRegionId] = useState("");
   const [irrigationType, setIrrigationType] = useState("drip");
   const [data, setData] = useState<HeatmapPoint[]>([]);
@@ -74,6 +107,68 @@ const Heatmap: React.FC = () => {
 
   const formatINR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
+  // 1. Categories
+  const uniqueCategories = Array.from(
+    new Set(crops.map((c) => c.category)),
+  ).sort();
+  const categoryOptions = uniqueCategories.map((cat) => ({
+    value: cat,
+    label: cat,
+  }));
+
+  // 2. Crops
+  const filteredCrops = categoryId
+    ? crops.filter((c) => c.category === categoryId)
+    : crops;
+  const cropOptions = filteredCrops.map((crop) => ({
+    value: crop._id,
+    label: crop.name,
+  }));
+
+  const selectedCrop = crops.find((c) => c._id === cropId);
+
+  // 3. States
+  const getValidRegionsForCrop = () => {
+    if (!selectedCrop) return regions;
+    return regions.filter((region) => {
+      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
+      return suitability > 0;
+    });
+  };
+  const cropValidRegions = getValidRegionsForCrop();
+  const uniqueStates = Array.from(
+    new Set(cropValidRegions.map((r) => r.state)),
+  ).sort();
+  const stateOptions = uniqueStates.map((st) => ({ value: st, label: st }));
+
+  // 4. Region
+  const filteredRegions = stateId
+    ? cropValidRegions.filter((r) => r.state === stateId)
+    : cropValidRegions;
+  const regionOptions = filteredRegions.map((r) => ({
+    value: r._id,
+    label: r.district,
+  }));
+
+  // Auto-clear
+  useEffect(() => {
+    setCropId("");
+    setRegionId("");
+    setStateId("");
+    setData([]);
+  }, [categoryId]);
+
+  useEffect(() => {
+    setRegionId("");
+    setStateId("");
+    setData([]);
+  }, [cropId]);
+
+  useEffect(() => {
+    setRegionId("");
+    setData([]);
+  }, [stateId]);
+
   if (dataLoading) {
     return (
       <div className="loading-container">
@@ -83,8 +178,6 @@ const Heatmap: React.FC = () => {
     );
   }
 
-  const maxProfit =
-    data.length > 0 ? Math.max(...data.map((d) => d.profit)) : 0;
   const optimalSize =
     data.length > 0
       ? data.reduce((best, d) => (d.roi > best.roi ? d : best), data[0])
@@ -101,41 +194,60 @@ const Heatmap: React.FC = () => {
           </p>
         </div>
 
-        <div className="tools-controls" style={{ flexWrap: "wrap" }}>
-          <div className="form-group" style={{ flex: 1, minWidth: "180px" }}>
-            <label>Crop</label>
-            <select
-              className="form-control"
-              value={cropId}
-              onChange={(e) => setCropId(e.target.value)}
-            >
-              <option value="">-- Select --</option>
-              {crops.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+        <div
+          className="tools-controls"
+          style={{ flexWrap: "wrap", alignItems: "flex-end" }}
+        >
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>1. Category</label>
+            <Select
+              styles={customSelectStyles}
+              options={categoryOptions}
+              placeholder="Category"
+              value={
+                categoryOptions.find((o) => o.value === categoryId) || null
+              }
+              onChange={(s) => setCategoryId(s?.value || "")}
+            />
           </div>
-          <div className="form-group" style={{ flex: 1, minWidth: "180px" }}>
-            <label>Region</label>
-            <select
-              className="form-control"
-              value={regionId}
-              onChange={(e) => setRegionId(e.target.value)}
-            >
-              <option value="">-- Select --</option>
-              {regions.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.district}, {r.state}
-                </option>
-              ))}
-            </select>
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>2. Crop</label>
+            <Select
+              styles={customSelectStyles}
+              options={cropOptions}
+              placeholder="Crop"
+              isDisabled={!categoryId}
+              value={cropOptions.find((o) => o.value === cropId) || null}
+              onChange={(s) => setCropId(s?.value || "")}
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>3. State</label>
+            <Select
+              styles={customSelectStyles}
+              options={stateOptions}
+              placeholder="State"
+              isDisabled={!cropId}
+              value={stateOptions.find((o) => o.value === stateId) || null}
+              onChange={(s) => setStateId(s?.value || "")}
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>4. Region</label>
+            <Select
+              styles={customSelectStyles}
+              options={regionOptions}
+              placeholder="District"
+              isDisabled={!stateId}
+              value={regionOptions.find((o) => o.value === regionId) || null}
+              onChange={(s) => setRegionId(s?.value || "")}
+            />
           </div>
           <div className="form-group" style={{ minWidth: "140px" }}>
             <label>Irrigation</label>
             <select
               className="form-control"
+              style={{ height: "45px" }}
               value={irrigationType}
               onChange={(e) => setIrrigationType(e.target.value)}
             >
@@ -149,7 +261,7 @@ const Heatmap: React.FC = () => {
             className="btn btn-primary"
             onClick={handleGenerate}
             disabled={!cropId || !regionId || loading}
-            style={{ alignSelf: "flex-end" }}
+            style={{ height: "45px" }}
           >
             {loading ? "Generating..." : "🗺️ Generate Heatmap"}
           </button>
@@ -157,18 +269,16 @@ const Heatmap: React.FC = () => {
 
         {data.length > 0 && (
           <>
-            {/* Optimal info */}
             {optimalSize && (
               <div className="heatmap-optimal">
                 <span>
                   🎯 <strong>Best ROI:</strong> {optimalSize.landSize} acres —
-                  ROI: {optimalSize.roi}% — Profit:{" "}
+                  ROI: {optimalSize.roi}% — Profit (per cycle):{" "}
                   {formatINR(optimalSize.profit)}
                 </span>
               </div>
             )}
 
-            {/* Profit Area Chart */}
             <div className="result-card" style={{ marginBottom: "1.25rem" }}>
               <h3>📈 Profit vs Land Size</h3>
               <ResponsiveContainer width="100%" height={320}>
@@ -231,7 +341,6 @@ const Heatmap: React.FC = () => {
               </ResponsiveContainer>
             </div>
 
-            {/* ROI Bar chart — heat-colored */}
             <div className="result-card" style={{ marginBottom: "1.25rem" }}>
               <h3>🔥 ROI Heatmap</h3>
               <ResponsiveContainer width="100%" height={260}>
@@ -267,7 +376,6 @@ const Heatmap: React.FC = () => {
               </ResponsiveContainer>
             </div>
 
-            {/* Data table */}
             <div className="result-card">
               <h3>📋 Detailed Breakdown</h3>
               <table className="data-table">
@@ -276,7 +384,7 @@ const Heatmap: React.FC = () => {
                     <th>Land (ac)</th>
                     <th>Revenue</th>
                     <th>Cost</th>
-                    <th>Profit</th>
+                    <th>Est. Profit (per cycle)</th>
                     <th>ROI</th>
                   </tr>
                 </thead>

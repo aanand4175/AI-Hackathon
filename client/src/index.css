@@ -1062,6 +1062,10 @@ select.form-control option {
   padding: 1.5rem;
 }
 
+.tools-controls .form-group {
+  margin-bottom: 0;
+}
+
 .region-info-bar {
   display: flex;
   gap: 1.5rem;

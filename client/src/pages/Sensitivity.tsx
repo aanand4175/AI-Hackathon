@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Select from "react-select";
 import { fetchCrops, fetchRegions, fetchSensitivity } from "../services/api";
 import type { Crop, Region } from "../types";
 import {
@@ -22,11 +23,45 @@ const IRRIGATION_TYPES = [
   { value: "flood", label: "Flood" },
 ];
 
+const customSelectStyles = {
+  control: (base: any, state: any) => ({
+    ...base,
+    background: "rgba(0, 0, 0, 0.2)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "8px",
+    color: "#fff",
+    minHeight: "45px",
+    boxShadow: state.isFocused ? "0 0 0 1px #06d6a0" : "none",
+    "&:hover": {
+      border: "1px solid rgba(255, 255, 255, 0.4)",
+    },
+  }),
+  menu: (base: any) => ({
+    ...base,
+    background: "#1a1a2e",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    zIndex: 100,
+  }),
+  option: (base: any, state: any) => ({
+    ...base,
+    backgroundColor: state.isFocused ? "rgba(6, 214, 160, 0.2)" : "transparent",
+    color: "#fff",
+    cursor: "pointer",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+  }),
+  singleValue: (base: any) => ({ ...base, color: "#fff" }),
+  input: (base: any) => ({ ...base, color: "#fff" }),
+};
+
 const Sensitivity: React.FC = () => {
   const [crops, setCrops] = useState<Crop[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+
+  const [categoryId, setCategoryId] = useState("");
   const [cropId, setCropId] = useState("");
+  const [stateId, setStateId] = useState("");
   const [regionId, setRegionId] = useState("");
+
   const [landSize, setLandSize] = useState(2);
   const [irrigationType, setIrrigationType] = useState("drip");
 
@@ -55,6 +90,71 @@ const Sensitivity: React.FC = () => {
     };
     load();
   }, []);
+
+  // 1. Categories
+  const uniqueCategories = Array.from(
+    new Set(crops.map((c) => c.category)),
+  ).sort();
+  const categoryOptions = uniqueCategories.map((cat) => ({
+    value: cat,
+    label: cat,
+  }));
+
+  // 2. Crops
+  const filteredCrops = categoryId
+    ? crops.filter((c) => c.category === categoryId)
+    : crops;
+  const cropOptions = filteredCrops.map((crop) => ({
+    value: crop._id,
+    label: crop.name,
+  }));
+
+  const selectedCrop = crops.find((c) => c._id === cropId);
+
+  // 3. States
+  const getValidRegionsForCrop = () => {
+    if (!selectedCrop) return regions;
+    return regions.filter((region) => {
+      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
+      return suitability > 0;
+    });
+  };
+  const cropValidRegions = getValidRegionsForCrop();
+  const uniqueStates = Array.from(
+    new Set(cropValidRegions.map((r) => r.state)),
+  ).sort();
+  const stateOptions = uniqueStates.map((st) => ({ value: st, label: st }));
+
+  // 4. Region
+  const filteredRegions = stateId
+    ? cropValidRegions.filter((r) => r.state === stateId)
+    : cropValidRegions;
+  const regionOptions = filteredRegions.map((r) => ({
+    value: r._id,
+    label: r.district,
+  }));
+
+  // Auto-clear
+  useEffect(() => {
+    setCropId("");
+    setRegionId("");
+    setStateId("");
+    setBaseResult(null);
+    setAdjustedResult(null);
+  }, [categoryId]);
+
+  useEffect(() => {
+    setRegionId("");
+    setStateId("");
+    setBaseResult(null);
+    setAdjustedResult(null);
+  }, [cropId]);
+
+  useEffect(() => {
+    setRegionId("");
+    setBaseResult(null);
+    setAdjustedResult(null);
+  }, [stateId]);
 
   // Fetch Base Sensitivity (0 variations) when parameters change
   useEffect(() => {
@@ -151,7 +251,7 @@ const Sensitivity: React.FC = () => {
             Adjusted: adjustedResult.adjustedCost,
           },
           {
-            name: "Net Profit",
+            name: "Net Profit (per cycle)",
             Base: baseResult.profit.profitAtMSP,
             Adjusted: adjustedResult.profit.profitAtMSP,
           },
@@ -172,43 +272,74 @@ const Sensitivity: React.FC = () => {
         {/* Configuration Row */}
         <div
           className="tools-controls"
-          style={{ flexWrap: "wrap", marginBottom: "2rem" }}
+          style={{
+            flexWrap: "wrap",
+            marginBottom: "2rem",
+            alignItems: "flex-end",
+          }}
         >
           <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
-            <label>Crop</label>
-            <select
-              className="form-control"
-              value={cropId}
-              onChange={(e) => setCropId(e.target.value)}
-            >
-              <option value="">-- Select crop --</option>
-              {crops.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <label>1. Category</label>
+            <Select
+              styles={customSelectStyles}
+              options={categoryOptions}
+              placeholder="Category"
+              value={
+                categoryOptions.find((o) => o.value === categoryId) || null
+              }
+              onChange={(s) => setCategoryId(s?.value || "")}
+            />
           </div>
           <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
-            <label>Region</label>
-            <select
-              className="form-control"
-              value={regionId}
-              onChange={(e) => setRegionId(e.target.value)}
-            >
-              <option value="">-- Select region --</option>
-              {regions.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.district}, {r.state}
-                </option>
-              ))}
-            </select>
+            <label>2. Crop</label>
+            <Select
+              styles={customSelectStyles}
+              options={cropOptions}
+              placeholder="Crop"
+              isDisabled={!categoryId}
+              value={cropOptions.find((o) => o.value === cropId) || null}
+              onChange={(s) => setCropId(s?.value || "")}
+            />
           </div>
-          <div className="form-group" style={{ flex: 1, minWidth: "100px" }}>
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>3. State</label>
+            <Select
+              styles={customSelectStyles}
+              options={stateOptions}
+              placeholder="State"
+              isDisabled={!cropId}
+              value={stateOptions.find((o) => o.value === stateId) || null}
+              onChange={(s) => setStateId(s?.value || "")}
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>4. Region</label>
+            <Select
+              styles={customSelectStyles}
+              options={regionOptions}
+              placeholder="District"
+              isDisabled={!stateId}
+              value={regionOptions.find((o) => o.value === regionId) || null}
+              onChange={(s) => setRegionId(s?.value || "")}
+            />
+          </div>
+        </div>
+
+        {/* Second Row for Land Size & Irrigation */}
+        <div
+          className="tools-controls"
+          style={{
+            flexWrap: "wrap",
+            marginBottom: "2rem",
+            alignItems: "flex-end",
+          }}
+        >
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
             <label>Land (acres)</label>
             <input
               type="number"
               className="form-control"
+              style={{ height: "45px" }}
               value={landSize}
               onChange={(e) => setLandSize(Number(e.target.value))}
               min="0.5"
@@ -219,6 +350,7 @@ const Sensitivity: React.FC = () => {
             <label>Irrigation</label>
             <select
               className="form-control"
+              style={{ height: "45px" }}
               value={irrigationType}
               onChange={(e) => setIrrigationType(e.target.value)}
             >
@@ -441,7 +573,7 @@ const Sensitivity: React.FC = () => {
                   style={{ background: "var(--bg-card)" }}
                 >
                   <h4 style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                    Base Profit
+                    Base Profit (per cycle)
                   </h4>
                   <div
                     style={{
@@ -467,7 +599,7 @@ const Sensitivity: React.FC = () => {
                   }}
                 >
                   <h4 style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                    Adjusted Profit
+                    Adjusted Profit (per cycle)
                   </h4>
                   <div
                     style={{

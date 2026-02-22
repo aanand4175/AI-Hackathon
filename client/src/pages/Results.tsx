@@ -353,7 +353,9 @@ const Results: React.FC = () => {
               </span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">Net Profit (MSP)</span>
+              <span className="stat-label">
+                Net Profit (MSP) <br /> (per cycle)
+              </span>
               <span
                 className={`stat-value ${profit.profitAtMSP >= 0 ? "green" : "red"}`}
               >
@@ -361,7 +363,9 @@ const Results: React.FC = () => {
               </span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">Net Profit (Market)</span>
+              <span className="stat-label">
+                Net Profit (Market) <br /> (per cycle)
+              </span>
               <span
                 className={`stat-value ${profit.profitAtMarket >= 0 ? "green" : "red"}`}
               >
@@ -396,7 +400,9 @@ const Results: React.FC = () => {
               <span className="stat-value">{yld.adjustedYieldPerAcre} qtl</span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">Total Yield</span>
+              <span className="stat-label">
+                Total Yield <br /> (per cycle)
+              </span>
               <span className="stat-value green">
                 {yld.totalYield} quintals
               </span>
