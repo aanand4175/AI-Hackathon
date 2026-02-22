@@ -12,6 +12,7 @@ export interface Crop {
   waterRequirement: string;
   marketDemand?: string;
   soilSuitability: Record<string, number>;
+  defaultCosts: Record<string, number>;
 }
 
 export interface Region {

@@ -40,6 +40,12 @@ const CROP_ICONS: Record<string, string> = {
   "Bajra (Pearl Millet)": "🌾",
   Strawberry: "🍓",
   Tomato: "🍅",
+  Onion: "🧅",
+  "Red Chilli": "🌶️",
+  Turmeric: "🟡",
+  Coriander: "🌿",
+  Ashwagandha: "🌱",
+  "Tulsi (Holy Basil)": "🌿",
 };
 
 // Custom styles for react-select to match our dark theme
@@ -77,15 +83,6 @@ const customSelectStyles = {
     ...base,
     color: "#fff",
   }),
-  groupHeading: (base: any) => ({
-    ...base,
-    color: "#888",
-    textTransform: "uppercase",
-    fontSize: "0.8rem",
-    fontWeight: "bold",
-    padding: "8px 12px",
-    background: "rgba(0,0,0,0.3)",
-  }),
 };
 
 const formatCropLabel = (crop: Crop) => (
@@ -97,10 +94,7 @@ const formatCropLabel = (crop: Crop) => (
     }}
   >
     <span>
-      {CROP_ICONS[crop.name] || "🌱"} <strong>{crop.name}</strong>{" "}
-      <span style={{ color: "#aaa", fontSize: "0.85rem", marginLeft: "6px" }}>
-        ({crop.category})
-      </span>
+      {CROP_ICONS[crop.name] || "🌱"} <strong>{crop.name}</strong>
     </span>
     <span
       style={{
@@ -120,7 +114,7 @@ const Estimator: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  // We're converting to a 2-step process to improve UX.
+  // We're using a 2-step process for a premium UX
   const [step, setStep] = useState<number>(1);
   const [crops, setCrops] = useState<Crop[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -128,10 +122,14 @@ const Estimator: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
+  // Four-level cascading dropdowns state
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [stateId, setStateId] = useState<string>("");
+
   const [formData, setFormData] = useState<FormData>({
     cropId: "",
     regionId: "",
-    landSize: 2, // Defaulting to 2 to save time
+    landSize: 2,
     irrigationType: "tubewell",
     priceSource: "market",
     costs: {
@@ -181,64 +179,81 @@ const Estimator: React.FC = () => {
     }));
   };
 
-  const selectedCrop = crops.find((c) => c._id === formData.cropId);
-  const selectedRegion = regions.find((r) => r._id === formData.regionId);
+  // --- Filtering Logic for 4 Dropdowns ---
 
-  // UX Fix: Filter available regions dynamically based on chosen crop's soil suitability
-  const getFilteredRegions = () => {
-    if (!selectedCrop) return regions;
-    return regions.filter((region) => {
-      // Check if the crop can grow in this region's soil type
-      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
-      return suitability > 0;
-    });
-  };
+  // 1. Categories
+  const uniqueCategories = Array.from(
+    new Set(crops.map((c) => c.category)),
+  ).sort();
+  const categoryOptions = uniqueCategories.map((cat) => ({
+    value: cat,
+    label: cat,
+  }));
 
-  const validRegions = getFilteredRegions();
-
-  // UX Fix: If the currently selected region is no longer valid for the newly selected crop, clear it
-  useEffect(() => {
-    if (selectedCrop && selectedRegion) {
-      const isStillValid = validRegions.find(
-        (r) => r._id === selectedRegion._id,
-      );
-      if (!isStillValid) {
-        setFormData((p) => ({ ...p, regionId: "" }));
-      }
-    }
-  }, [formData.cropId]);
-
-  // Transform standard Crops data to react-select options
-  const cropOptions = crops.map((crop) => ({
+  // 2. Crops (Filtered by Category)
+  const filteredCrops = categoryId
+    ? crops.filter((c) => c.category === categoryId)
+    : crops;
+  const cropOptions = filteredCrops.map((crop) => ({
     value: crop._id,
     label: formatCropLabel(crop),
     cropObj: crop,
   }));
 
-  // Group filtered regions by State for react-select
-  const regionGroups = Object.entries(
-    validRegions.reduce(
-      (acc, region) => {
-        if (!acc[region.state]) acc[region.state] = [];
-        acc[region.state].push(region);
-        return acc;
-      },
-      {} as Record<string, Region[]>,
-    ),
-  ).map(([state, stateRegions]) => ({
-    label: state,
-    options: stateRegions.map((r) => ({
-      value: r._id,
-      label: `${r.district} — Soil: ${r.soilType} — 🌧️ ${r.avgRainfallMM}mm`,
-      regionObj: r,
-    })),
+  const selectedCrop = crops.find((c) => c._id === formData.cropId);
+
+  // 3. States (Filtered by Region validness for Crop)
+  // First get all regions valid for selected crop
+  const getValidRegionsForCrop = () => {
+    if (!selectedCrop) return regions; // if no crop selected, return all
+    return regions.filter((region) => {
+      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
+      return suitability > 0;
+    });
+  };
+
+  const cropValidRegions = getValidRegionsForCrop();
+  const uniqueStates = Array.from(
+    new Set(cropValidRegions.map((r) => r.state)),
+  ).sort();
+  const stateOptions = uniqueStates.map((st) => ({ value: st, label: st }));
+
+  // 4. Region (Filtered by State and Crop Validness)
+  const filteredRegions = stateId
+    ? cropValidRegions.filter((r) => r.state === stateId)
+    : cropValidRegions;
+
+  const regionOptions = filteredRegions.map((r) => ({
+    value: r._id,
+    label: `${r.district} — Soil: ${r.soilType} — 🌧️ ${r.avgRainfallMM}mm`,
+    regionObj: r,
   }));
 
+  const selectedRegion = regions.find((r) => r._id === formData.regionId);
+
+  // Auto-clear downstream dropdowns if parent changes
+  useEffect(() => {
+    setFormData((p) => ({ ...p, cropId: "", regionId: "" }));
+    setStateId("");
+  }, [categoryId]);
+
+  useEffect(() => {
+    setFormData((p) => ({ ...p, regionId: "" }));
+    setStateId("");
+  }, [formData.cropId]);
+
+  useEffect(() => {
+    setFormData((p) => ({ ...p, regionId: "" }));
+  }, [stateId]);
+
+  // --- Steps Logic ---
   const nextStep = () => setStep(2);
   const prevStep = () => setStep(1);
 
   const canProceedStep1 =
+    !!categoryId &&
     !!formData.cropId &&
+    !!stateId &&
     !!formData.regionId &&
     formData.landSize > 0 &&
     !!formData.irrigationType;
@@ -302,7 +317,10 @@ const Estimator: React.FC = () => {
     <main className="estimator-page">
       <div className="estimator-header">
         <h1>{t("estimator.title")}</h1>
-        <p>Speed up your analysis. Fill out your details below.</p>
+        <p>
+          Speed up your analysis. Select your preferences to get AI-driven
+          insights.
+        </p>
       </div>
 
       {/* Modern 2-Step Indicator */}
@@ -327,113 +345,102 @@ const Estimator: React.FC = () => {
         <div className="form-card">
           <h2>🌾 Crop & Location</h2>
           <p className="form-description">
-            We've grouped the essential options. Regions are automatically
-            filtered based on your crop's soil requirements.
+            Select your Crop Category, then the specific Crop. Regions will
+            intelligently filter based on the crop's soil requirements.
           </p>
 
           <div className="form-row">
-            <div className="form-group" style={{ flex: 1.5 }}>
+            {/* Dropdown 1: Category */}
+            <div className="form-group" style={{ flex: 1 }}>
               <label>
-                Select Crop <span className="required">*</span>
+                1. Crop Category <span className="required">*</span>
+              </label>
+              <Select
+                styles={customSelectStyles}
+                options={categoryOptions}
+                isSearchable={true}
+                placeholder="🔍 Select Category..."
+                value={
+                  categoryOptions.find((o) => o.value === categoryId) || null
+                }
+                onChange={(selected) => setCategoryId(selected?.value || "")}
+              />
+            </div>
+
+            {/* Dropdown 2: Crop */}
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>
+                2. Select Crop <span className="required">*</span>
               </label>
               <Select
                 styles={customSelectStyles}
                 options={cropOptions}
                 isSearchable={true}
-                placeholder="🔍 Type or search for a crop..."
+                isDisabled={!categoryId}
+                placeholder={
+                  categoryId ? "🔍 Choose a crop..." : "Select Category first"
+                }
                 value={
                   cropOptions.find((o) => o.value === formData.cropId) || null
                 }
-                onChange={(selected) =>
-                  setFormData((p) => ({ ...p, cropId: selected?.value || "" }))
-                }
+                onChange={(selected) => {
+                  const newCropId = selected?.value || "";
+                  const cropObj = crops.find((c) => c._id === newCropId);
+                  const defCosts = cropObj?.defaultCosts;
+                  setFormData((p) => ({
+                    ...p,
+                    cropId: newCropId,
+                    // Auto-fill standard costs for step 2 based on AI/DB defaults
+                    costs: {
+                      seeds: defCosts?.seeds || 0,
+                      fertilizer: defCosts?.fertilizer || 0,
+                      pesticide: defCosts?.pesticide || 0,
+                      labor: defCosts?.labor || 0,
+                      irrigation: defCosts?.irrigation || 0,
+                      transport: defCosts?.transport || 0,
+                      misc: defCosts?.misc || 0,
+                    },
+                  }));
+                }}
               />
-              {/* Quick default options for crop selection */}
-              {!formData.cropId && (
-                <div
-                  style={{
-                    marginTop: "0.8rem",
-                    display: "flex",
-                    gap: "8px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.8rem",
-                      color: "#888",
-                      alignSelf: "center",
-                    }}
-                  >
-                    Popular:
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ padding: "4px 12px", fontSize: "0.8rem" }}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        cropId:
-                          crops.find((c) => c.name === "Rice (Paddy)")?._id ||
-                          "",
-                      }))
-                    }
-                  >
-                    🌾 Rice
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ padding: "4px 12px", fontSize: "0.8rem" }}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        cropId:
-                          crops.find((c) => c.name === "Wheat")?._id || "",
-                      }))
-                    }
-                  >
-                    🌾 Wheat
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ padding: "4px 12px", fontSize: "0.8rem" }}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        cropId:
-                          crops.find((c) => c.name === "Tomato")?._id || "",
-                      }))
-                    }
-                  >
-                    🍅 Tomato
-                  </button>
-                </div>
-              )}
             </div>
+          </div>
 
-            <div className="form-group" style={{ flex: 1.5 }}>
+          <div className="form-row" style={{ marginTop: "1rem" }}>
+            {/* Dropdown 3: State */}
+            <div className="form-group" style={{ flex: 1 }}>
               <label>
-                Select Region <span className="required">*</span>
+                3. Select State <span className="required">*</span>
               </label>
               <Select
                 styles={customSelectStyles}
-                options={regionGroups}
+                options={stateOptions}
                 isSearchable={true}
                 isDisabled={!formData.cropId}
                 placeholder={
-                  formData.cropId
-                    ? "🔍 Search your district..."
-                    : "Select crop first..."
+                  formData.cropId ? "🔍 Select State..." : "Select Crop first"
+                }
+                value={stateOptions.find((o) => o.value === stateId) || null}
+                onChange={(selected) => setStateId(selected?.value || "")}
+              />
+            </div>
+
+            {/* Dropdown 4: Region */}
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>
+                4. Select Region/District <span className="required">*</span>
+              </label>
+              <Select
+                styles={customSelectStyles}
+                options={regionOptions}
+                isSearchable={true}
+                isDisabled={!stateId}
+                placeholder={
+                  stateId ? "🔍 Select district..." : "Select State first"
                 }
                 value={
-                  formData.regionId
-                    ? regionGroups
-                        .flatMap((g) => g.options)
-                        .find((o) => o.value === formData.regionId) || null
-                    : null
+                  regionOptions.find((o) => o.value === formData.regionId) ||
+                  null
                 }
                 onChange={(selected) =>
                   setFormData((p) => ({
@@ -442,66 +449,54 @@ const Estimator: React.FC = () => {
                   }))
                 }
               />
-              {formData.cropId && validRegions.length > 0 && (
-                <p className="form-hint" style={{ color: "var(--green-400)" }}>
-                  ✓ Showing regions suitable for {selectedCrop?.name}
-                </p>
-              )}
             </div>
           </div>
 
-          {(selectedCrop || selectedRegion) && (
+          {selectedCrop && selectedRegion && categoryId && stateId && (
             <div
               className="info-grid"
               style={{
-                marginTop: "1rem",
+                marginTop: "1.5rem",
                 marginBottom: "2rem",
                 background: "rgba(0,0,0,0.1)",
+                border: "1px solid rgba(6, 214, 160, 0.3)",
               }}
             >
-              {selectedCrop && (
-                <>
-                  <div className="info-item">
-                    <div className="info-label">Base Yield</div>
-                    <div className="info-value">
-                      {selectedCrop.baseYieldPerAcre} qtl/ac
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <div className="info-label">Water Need</div>
-                    <div className="info-value">
-                      {selectedCrop.waterRequirement}
-                    </div>
-                  </div>
-                </>
-              )}
-              {selectedRegion && (
-                <>
-                  <div className="info-item">
-                    <div
-                      className="info-label"
-                      title={selectedRegion.soilType + " is good for this crop"}
-                    >
-                      Soil Type ℹ️
-                    </div>
-                    <div
-                      className="info-value"
-                      style={{ color: "var(--yellow-400)" }}
-                    >
-                      {selectedRegion.soilType}
-                    </div>
-                  </div>
-                  <div className="info-item">
-                    <div className="info-label">Rainfall</div>
-                    <div
-                      className="info-value"
-                      style={{ color: "var(--blue-400)" }}
-                    >
-                      {selectedRegion.avgRainfallMM} mm
-                    </div>
-                  </div>
-                </>
-              )}
+              <div className="info-item">
+                <div className="info-label">Base Yield</div>
+                <div className="info-value" style={{ color: "white" }}>
+                  {selectedCrop.baseYieldPerAcre} qtl/ac
+                </div>
+              </div>
+              <div className="info-item">
+                <div className="info-label">Water Need</div>
+                <div className="info-value" style={{ color: "white" }}>
+                  {selectedCrop.waterRequirement}
+                </div>
+              </div>
+              <div className="info-item">
+                <div
+                  className="info-label"
+                  title={selectedRegion.soilType + " is good for this crop"}
+                >
+                  Soil Type ℹ️
+                </div>
+                <div
+                  className="info-value"
+                  style={{ color: "var(--yellow-400)" }}
+                >
+                  {selectedRegion.soilType}
+                </div>
+              </div>
+              <div className="info-item">
+                <div className="info-label">Rainfall</div>
+                <div
+                  className="info-value"
+                  style={{ color: "var(--blue-400)" }}
+                >
+                  {selectedRegion.avgRainfallMM} mm
+                </div>
+              </div>
             </div>
           )}
 
@@ -603,10 +598,11 @@ const Estimator: React.FC = () => {
       {/* Step 2: Input Costs Configuration */}
       {step === 2 && (
         <div className="form-card">
-          <h2>💸 Input Cost Adjustments</h2>
+          <h2>💸 Custom Cost Inputs (AI Approximated)</h2>
           <p className="form-description">
-            Customize your estimated costs per acre in INR based on your local
-            prices. Leave as 0 to use AI-recommended default values.
+            We have pre-filled these values based on the AI agricultural data
+            for <strong>{selectedCrop?.name || "your crop"}</strong>. You can
+            adjust them perfectly to your local prices per acre.
           </p>
 
           <div className="cost-inputs-grid">
@@ -627,7 +623,7 @@ const Estimator: React.FC = () => {
                   type="number"
                   name={field}
                   className="form-control"
-                  placeholder="Auto AI default if 0"
+                  placeholder="0"
                   value={
                     (formData.costs as Record<string, number>)[field] || ""
                   }
@@ -637,21 +633,6 @@ const Estimator: React.FC = () => {
               </div>
             ))}
           </div>
-
-          {error && (
-            <div
-              style={{
-                background: "rgba(239, 71, 111, 0.1)",
-                color: "var(--red-400)",
-                padding: "1rem",
-                borderRadius: "8px",
-                marginTop: "1.5rem",
-                border: "1px solid rgba(239, 71, 111, 0.3)",
-              }}
-            >
-              ⚠️ {error}
-            </div>
-          )}
 
           <div className="form-actions" style={{ marginTop: "2rem" }}>
             <button className="btn btn-secondary" onClick={prevStep}>
@@ -671,7 +652,7 @@ const Estimator: React.FC = () => {
                   Generating Estimate...
                 </>
               ) : (
-                `📊 Generate Report`
+                `📊 Generate AI Report`
               )}
             </button>
           </div>
