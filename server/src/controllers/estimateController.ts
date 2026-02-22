@@ -19,7 +19,36 @@ import type {
   IProfitEstimate,
   IRiskAssessment,
   IRecommendation,
+  FarmingType,
 } from "../types";
+
+const getYieldMultiplierByFarmingType = (
+  farmingType: FarmingType,
+  cropCategory: string,
+): number => {
+  const normalizedCategory = cropCategory.toLowerCase();
+  if (farmingType === "protected") {
+    return normalizedCategory.includes("horticulture") ? 1.2 : 1.1;
+  }
+  if (farmingType === "hydroponic") {
+    return normalizedCategory.includes("horticulture") ? 1.35 : 1.15;
+  }
+  return 1;
+};
+
+const applyFarmingTypeYield = (
+  yieldEstimate: ReturnType<typeof calculateExpectedYield>,
+  farmingType: FarmingType,
+  cropCategory: string,
+) => {
+  const multiplier = getYieldMultiplierByFarmingType(farmingType, cropCategory);
+  return {
+    ...yieldEstimate,
+    adjustedYieldPerAcre:
+      Math.round(yieldEstimate.adjustedYieldPerAcre * multiplier * 100) / 100,
+    totalYield: Math.round(yieldEstimate.totalYield * multiplier * 100) / 100,
+  };
+};
 
 // @desc    Calculate full profitability estimate (ENHANCED)
 // @route   POST /api/estimate
@@ -28,8 +57,15 @@ const calculateEstimate = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const { cropId, regionId, landSize, irrigationType, priceSource, costs } =
-      req.body as IEstimateRequestBody;
+    const {
+      cropId,
+      regionId,
+      landSize,
+      irrigationType,
+      farmingType = "open_field",
+      priceSource,
+      costs,
+    } = req.body as IEstimateRequestBody;
 
     if (!cropId || !regionId || !landSize || !irrigationType) {
       res.status(400).json({
@@ -72,13 +108,21 @@ const calculateEstimate = async (
       landSize,
       irrigationType,
     );
+    const adjustedYieldEstimate = applyFarmingTypeYield(
+      yieldEstimate,
+      farmingType,
+      crop.category,
+    );
 
     // 2. Cost
-    const costEstimate = calculateTotalCost(crop, landSize, costs || {});
+    const costEstimate = calculateTotalCost(crop, landSize, costs || {}, {
+      region,
+      farmingType,
+    });
 
     // 3. Profit
     const profitEstimate = calculateProfitability(
-      yieldEstimate.totalYield,
+      adjustedYieldEstimate.totalYield,
       crop.mspPerQuintal,
       activeMarketPrice,
       costEstimate.totalCost,
@@ -108,12 +152,12 @@ const calculateEstimate = async (
       costEstimate.totalCost,
       crop.mspHistory || [],
       landSize,
-      yieldEstimate.totalYield,
+      adjustedYieldEstimate.totalYield,
     );
 
     // 9. Sensitivity Analysis
     const sensitivity = calculateSensitivity(
-      yieldEstimate.totalYield,
+      adjustedYieldEstimate.totalYield,
       crop.mspPerQuintal,
       activeMarketPrice,
       costEstimate.totalCost,
@@ -131,9 +175,10 @@ const calculateEstimate = async (
         region: `${region.district}, ${region.state}`,
         landSize: `${landSize} acres`,
         irrigationType,
+        farmingType,
         growthDuration: `${crop.growthDurationDays} days`,
       },
-      yield: yieldEstimate,
+      yield: adjustedYieldEstimate,
       cost: costEstimate,
       profit: profitEstimate,
       risk: riskAssessment,
@@ -197,8 +242,8 @@ function generateRecommendation(
   };
 }
 
-// @desc    Get top 3 crop recommendations for a region
-// @route   GET /api/recommendations/:regionId
+// @desc    Get top crop recommendations for a region
+// @route   GET /api/estimate/recommendations/:regionId
 const getRecommendations = async (
   req: Request,
   res: Response,
@@ -224,49 +269,49 @@ const getRecommendations = async (
 
     const recommendations = crops
       .map((crop) => {
-      const yieldEst = calculateExpectedYield(crop, region, 1, "drip"); // standard 1 acre, drip
-      const costEst = calculateTotalCost(crop, 1, {});
-      const profitEst = calculateProfitability(
-        yieldEst.totalYield,
-        crop.mspPerQuintal,
-        crop.marketPricePerQuintal,
-        costEst.totalCost,
-      );
-      const riskAss = calculateRiskScore(crop, region, "drip");
-      const confidence = calculateConfidence(crop, region, "drip", riskAss);
-      const suitability = calculateSuitability(crop, region, "drip");
-      const riskScore = riskLevelToScore[riskAss.riskLevel] ?? 50;
-      const roiScore = normalizeRoi(profitEst.roiAtMSP);
-      const recommendationScore = Math.round(
-        suitability.overall * 0.45 +
-          confidence.overall * 0.25 +
-          roiScore * 0.2 +
-          riskScore * 0.1,
-      );
+        const yieldEst = calculateExpectedYield(crop, region, 1, "drip");
+        const costEst = calculateTotalCost(crop, 1, {}, {
+          region,
+          farmingType: "open_field",
+        });
+        const profitEst = calculateProfitability(
+          yieldEst.totalYield,
+          crop.mspPerQuintal,
+          crop.marketPricePerQuintal,
+          costEst.totalCost,
+        );
+        const riskAss = calculateRiskScore(crop, region, "drip");
+        const confidence = calculateConfidence(crop, region, "drip", riskAss);
+        const suitability = calculateSuitability(crop, region, "drip");
+        const riskScore = riskLevelToScore[riskAss.riskLevel] ?? 50;
+        const roiScore = normalizeRoi(profitEst.roiAtMSP);
+        const recommendationScore = Math.round(
+          suitability.overall * 0.45 +
+            confidence.overall * 0.25 +
+            roiScore * 0.2 +
+            riskScore * 0.1,
+        );
 
-      const matchHighlights = [
-        `Soil match ${suitability.soilMatch}/100`,
-        `Rainfall fit ${suitability.rainfallMatch}/100`,
-        `Risk ${riskAss.riskLevel}`,
-      ];
-
-      return {
-        cropId: crop._id,
-        cropName: crop.name,
-        category: crop.category,
-        estimatedProfit: profitEst.profitAtMSP,
-        roi: profitEst.roiAtMSP,
-        riskLevel: riskAss.riskLevel,
-        confidence: confidence.overall,
-        suitabilityScore: suitability.overall,
-        marketDemand: crop.marketDemand || "Medium",
-        recommendationScore,
-        matchHighlights,
-      };
+        return {
+          cropId: crop._id,
+          cropName: crop.name,
+          category: crop.category,
+          estimatedProfit: profitEst.profitAtMSP,
+          roi: profitEst.roiAtMSP,
+          riskLevel: riskAss.riskLevel,
+          confidence: confidence.overall,
+          suitabilityScore: suitability.overall,
+          marketDemand: crop.marketDemand || "Medium",
+          recommendationScore,
+          matchHighlights: [
+            `Soil match ${suitability.soilMatch}/100`,
+            `Rainfall fit ${suitability.rainfallMatch}/100`,
+            `Risk ${riskAss.riskLevel}`,
+          ],
+        };
       })
       .filter((item) => item.suitabilityScore >= 35);
 
-    // Sort by weighted recommendation score first, then profitability as tie-breaker
     recommendations.sort((a, b) => {
       if ((b.recommendationScore || 0) !== (a.recommendationScore || 0)) {
         return (b.recommendationScore || 0) - (a.recommendationScore || 0);
@@ -282,7 +327,7 @@ const getRecommendations = async (
 };
 
 // @desc    Compare two scenarios
-// @route   POST /api/compare
+// @route   POST /api/estimate/compare
 const compareScenarios = async (req: Request, res: Response): Promise<void> => {
   try {
     const { cropId, regionId, scenarioA, scenarioB } = req.body;
@@ -306,24 +351,25 @@ const compareScenarios = async (req: Request, res: Response): Promise<void> => {
     const calcScenario = (s: {
       landSize: number;
       irrigationType: string;
+      farmingType?: FarmingType;
       costs?: Record<string, number>;
     }) => {
-      const y = calculateExpectedYield(
-        crop,
+      const scenarioFarmingType = s.farmingType || "open_field";
+      const y = calculateExpectedYield(crop, region, s.landSize, s.irrigationType);
+      const adjustedY = applyFarmingTypeYield(y, scenarioFarmingType, crop.category);
+      const c = calculateTotalCost(crop, s.landSize, s.costs || {}, {
         region,
-        s.landSize,
-        s.irrigationType,
-      );
-      const c = calculateTotalCost(crop, s.landSize, s.costs || {});
+        farmingType: scenarioFarmingType,
+      });
       const p = calculateProfitability(
-        y.totalYield,
+        adjustedY.totalYield,
         crop.mspPerQuintal,
         crop.marketPricePerQuintal,
         c.totalCost,
       );
       const r = calculateRiskScore(crop, region, s.irrigationType);
       const conf = calculateConfidence(crop, region, s.irrigationType, r);
-      return { yield: y, cost: c, profit: p, risk: r, confidence: conf };
+      return { yield: adjustedY, cost: c, profit: p, risk: r, confidence: conf };
     };
 
     const resultA = calcScenario(scenarioA);
@@ -381,7 +427,8 @@ const getMspTrend = async (req: Request, res: Response): Promise<void> => {
 // @route   POST /api/estimate/heatmap
 const landSizeHeatmap = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { cropId, regionId, irrigationType } = req.body;
+    const { cropId, regionId, irrigationType, farmingType = "open_field" } =
+      req.body;
     const crop = await Crop.findById(cropId);
     const region = await Region.findById(regionId);
     if (!crop || !region) {
@@ -393,15 +440,11 @@ const landSizeHeatmap = async (req: Request, res: Response): Promise<void> => {
 
     const sizes = [0.5, 1, 2, 3, 5, 7, 10, 15, 20];
     const data = sizes.map((size) => {
-      const y = calculateExpectedYield(
-        crop,
-        region,
-        size,
-        irrigationType || "drip",
-      );
-      const c = calculateTotalCost(crop, size, {});
+      const y = calculateExpectedYield(crop, region, size, irrigationType || "drip");
+      const adjustedY = applyFarmingTypeYield(y, farmingType, crop.category);
+      const c = calculateTotalCost(crop, size, {}, { region, farmingType });
       const p = calculateProfitability(
-        y.totalYield,
+        adjustedY.totalYield,
         crop.mspPerQuintal,
         crop.marketPricePerQuintal,
         c.totalCost,
@@ -431,6 +474,7 @@ const getSensitivity = async (req: Request, res: Response): Promise<void> => {
       regionId,
       landSize,
       irrigationType,
+      farmingType = "open_field",
       priceVariation = 0,
       yieldVariation = 0,
       costVariation = 0,
@@ -450,10 +494,18 @@ const getSensitivity = async (req: Request, res: Response): Promise<void> => {
       landSize,
       irrigationType || "drip",
     );
-    const baseCost = calculateTotalCost(crop, landSize, {});
+    const adjustedBaseYield = applyFarmingTypeYield(
+      baseYield,
+      farmingType,
+      crop.category,
+    );
+    const baseCost = calculateTotalCost(crop, landSize, {}, {
+      region,
+      farmingType,
+    });
 
     // Apply variations
-    const adjustedYield = baseYield.totalYield * (1 + yieldVariation / 100);
+    const adjustedYield = adjustedBaseYield.totalYield * (1 + yieldVariation / 100);
     const adjustedCost = baseCost.totalCost * (1 + costVariation / 100);
     const adjustedMarketPrice =
       crop.marketPricePerQuintal * (1 + priceVariation / 100);

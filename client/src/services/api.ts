@@ -34,8 +34,16 @@ export const fetchRecommendations = (regionId: string) =>
 export const compareScenarios = (data: {
   cropId: string;
   regionId: string;
-  scenarioA: { landSize: number; irrigationType: string };
-  scenarioB: { landSize: number; irrigationType: string };
+  scenarioA: {
+    landSize: number;
+    irrigationType: string;
+    farmingType?: "open_field" | "protected" | "hydroponic";
+  };
+  scenarioB: {
+    landSize: number;
+    irrigationType: string;
+    farmingType?: "open_field" | "protected" | "hydroponic";
+  };
 }) => API.post("/estimate/compare", data);
 
 // Land Size Heatmap
@@ -43,6 +51,7 @@ export const fetchHeatmap = (data: {
   cropId: string;
   regionId: string;
   irrigationType: string;
+  farmingType?: "open_field" | "protected" | "hydroponic";
 }) => API.post("/estimate/heatmap", data);
 
 // Sensitivity Analysis
@@ -51,6 +60,7 @@ export const fetchSensitivity = (data: {
   regionId: string;
   landSize: number;
   irrigationType: string;
+  farmingType?: "open_field" | "protected" | "hydroponic";
   priceVariation: number;
   yieldVariation: number;
   costVariation: number;

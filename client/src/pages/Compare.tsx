@@ -23,6 +23,7 @@ import {
 interface ScenarioConfig {
   landSize: number;
   irrigationType: string;
+  farmingType: "open_field" | "protected" | "hydroponic";
 }
 
 interface BestScenarioSnapshot {
@@ -35,6 +36,11 @@ interface BestScenarioSnapshot {
 }
 
 const LAND_SIZE_PRESETS = [1, 2, 5, 10];
+const FARMING_TYPE_OPTIONS = [
+  { value: "open_field", label: "Open Field" },
+  { value: "protected", label: "Protected" },
+  { value: "hydroponic", label: "Hydroponic" },
+];
 
 const CROP_ICONS: Record<string, string> = {
   Wheat: "🌾",
@@ -127,10 +133,12 @@ const Compare: React.FC = () => {
   const [scenarioA, setScenarioA] = useState<ScenarioConfig>({
     landSize: 2,
     irrigationType: "canal",
+    farmingType: "open_field",
   });
   const [scenarioB, setScenarioB] = useState<ScenarioConfig>({
     landSize: 5,
     irrigationType: "drip",
+    farmingType: "open_field",
   });
   const [result, setResult] = useState<any>(null);
   const [bestScenarioByProfit, setBestScenarioByProfit] =
@@ -249,6 +257,34 @@ const Compare: React.FC = () => {
 
   const selectedCrop = crops.find((c) => c._id === cropId);
   const selectedRegion = regions.find((r) => r._id === regionId);
+  const farmingTypeOptionsForRegion =
+    selectedRegion?.supportedFarmingTypes?.length
+      ? FARMING_TYPE_OPTIONS.filter((opt) =>
+          selectedRegion.supportedFarmingTypes?.includes(opt.value),
+        )
+      : FARMING_TYPE_OPTIONS;
+
+  useEffect(() => {
+    const fallback =
+      (farmingTypeOptionsForRegion[0]?.value as ScenarioConfig["farmingType"]) ||
+      "open_field";
+    setScenarioA((prev) => ({
+      ...prev,
+      farmingType: farmingTypeOptionsForRegion.find(
+        (ft) => ft.value === prev.farmingType,
+      )
+        ? prev.farmingType
+        : fallback,
+    }));
+    setScenarioB((prev) => ({
+      ...prev,
+      farmingType: farmingTypeOptionsForRegion.find(
+        (ft) => ft.value === prev.farmingType,
+      )
+        ? prev.farmingType
+        : fallback,
+    }));
+  }, [regionId]);
 
   // 3. States
   const getValidRegionsForCrop = () => {
@@ -279,7 +315,8 @@ const Compare: React.FC = () => {
 
   const isSameScenario =
     scenarioA.landSize === scenarioB.landSize &&
-    scenarioA.irrigationType === scenarioB.irrigationType;
+    scenarioA.irrigationType === scenarioB.irrigationType &&
+    scenarioA.farmingType === scenarioB.farmingType;
 
   const handleFindBestScenario = async () => {
     if (!cropId || !regionId || irrigationOptions.length === 0) return;
@@ -293,6 +330,7 @@ const Compare: React.FC = () => {
       const baseline = {
         landSize: 1,
         irrigationType: irrigationOptions[0].value,
+        farmingType: "open_field" as const,
       };
 
       const snapshots: BestScenarioSnapshot[] = [];
@@ -306,6 +344,7 @@ const Compare: React.FC = () => {
             scenarioB: {
               landSize,
               irrigationType: irrigation.value,
+              farmingType: "open_field",
             },
           });
 
@@ -537,6 +576,25 @@ const Compare: React.FC = () => {
                 }
               />
             </div>
+            <div className="form-group">
+              <label>Farming Type</label>
+              <Select
+                styles={customSelectStyles}
+                {...selectOverlayProps}
+                options={farmingTypeOptionsForRegion}
+                value={
+                  farmingTypeOptionsForRegion.find(
+                    (o) => o.value === scenarioA.farmingType,
+                  ) || null
+                }
+                onChange={(s) =>
+                  setScenarioA((p) => ({
+                    ...p,
+                    farmingType: (s?.value || p.farmingType) as ScenarioConfig["farmingType"],
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <div className="scenario-vs">VS</div>
@@ -594,6 +652,25 @@ const Compare: React.FC = () => {
                 }
               />
             </div>
+            <div className="form-group">
+              <label>Farming Type</label>
+              <Select
+                styles={customSelectStyles}
+                {...selectOverlayProps}
+                options={farmingTypeOptionsForRegion}
+                value={
+                  farmingTypeOptionsForRegion.find(
+                    (o) => o.value === scenarioB.farmingType,
+                  ) || null
+                }
+                onChange={(s) =>
+                  setScenarioB((p) => ({
+                    ...p,
+                    farmingType: (s?.value || p.farmingType) as ScenarioConfig["farmingType"],
+                  }))
+                }
+              />
+            </div>
           </div>
         </div>
 
@@ -645,6 +722,7 @@ const Compare: React.FC = () => {
                   setScenarioB({
                     landSize: bestScenarioByProfit.landSize,
                     irrigationType: bestScenarioByProfit.irrigationType,
+                    farmingType: "open_field",
                   })
                 }
               >
@@ -741,6 +819,12 @@ const Compare: React.FC = () => {
                     <td>Irrigation</td>
                     <td>{formatIrrigationLabel(result.scenarioA.irrigationType)}</td>
                     <td>{formatIrrigationLabel(result.scenarioB.irrigationType)}</td>
+                    <td>—</td>
+                  </tr>
+                  <tr>
+                    <td>Farming Type</td>
+                    <td>{result.scenarioA.farmingType || "open_field"}</td>
+                    <td>{result.scenarioB.farmingType || "open_field"}</td>
                     <td>—</td>
                   </tr>
                   <tr>

@@ -24,6 +24,10 @@ export interface Region {
   avgRainfallMM: number;
   yieldMultiplier: number;
   irrigationAvailability: string;
+  supportedFarmingTypes?: string[];
+  recommendedIrrigationTypes?: string[];
+  costAdjustmentByCategory?: Record<string, number>;
+  costAdjustmentByFarmingType?: Record<string, number>;
 }
 
 export interface FormData {
@@ -31,6 +35,7 @@ export interface FormData {
   regionId: string;
   landSize: number;
   irrigationType: string;
+  farmingType?: "open_field" | "protected" | "hydroponic";
   priceSource: string;
   costs: Record<string, number>;
 }
@@ -57,6 +62,8 @@ export interface CostEstimate {
   totalCost: number;
   costBreakdown: Record<string, CostBreakdownItem>;
   landSize: number;
+  categoryCostMultiplier?: number;
+  farmingTypeCostMultiplier?: number;
 }
 
 export interface ProfitEstimate {
@@ -181,6 +188,7 @@ export interface EstimateResult {
     region: string;
     landSize: string;
     irrigationType: string;
+    farmingType?: string;
     growthDuration: string;
   };
   yield: YieldEstimate;

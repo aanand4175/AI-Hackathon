@@ -7,6 +7,11 @@ interface DashboardStats {
   totalRegions: number;
   recentEstimates: number;
   activeUsers: number;
+  statesCovered: number;
+  totalHighDemandCrops: number;
+  avgYieldMultiplier: number;
+  protectedReadyRegions: number;
+  topStateByCoverage: string;
 }
 
 const Dashboard: React.FC = () => {
@@ -56,6 +61,9 @@ const Dashboard: React.FC = () => {
     <div className="admin-dashboard">
       <div className="admin-header-row">
         <h2>🚀 System Overview</h2>
+        <p className="admin-dashboard-sub">
+          Master data health, regional coverage, and production-readiness status.
+        </p>
       </div>
 
       <div className="admin-stats-grid">
@@ -106,10 +114,80 @@ const Dashboard: React.FC = () => {
             👥
           </div>
           <div className="stat-details">
-            <h3>Platform Health</h3>
-            <p className="stat-value">Optimal</p>
+            <h3>States Covered</h3>
+            <p className="stat-value">{stats.statesCovered}</p>
           </div>
         </div>
+
+        <div className="admin-stat-card">
+          <div
+            className="stat-icon"
+            style={{ background: "rgba(149, 117, 255, 0.1)", color: "#9575ff" }}
+          >
+            📦
+          </div>
+          <div className="stat-details">
+            <h3>High Demand Crops</h3>
+            <p className="stat-value">{stats.totalHighDemandCrops}</p>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div
+            className="stat-icon"
+            style={{ background: "rgba(255, 159, 67, 0.1)", color: "#ff9f43" }}
+          >
+            🌾
+          </div>
+          <div className="stat-details">
+            <h3>Avg Yield Multiplier</h3>
+            <p className="stat-value">{stats.avgYieldMultiplier}x</p>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div
+            className="stat-icon"
+            style={{ background: "rgba(0, 205, 172, 0.1)", color: "#00cdac" }}
+          >
+            🏗️
+          </div>
+          <div className="stat-details">
+            <h3>Protected-Ready Regions</h3>
+            <p className="stat-value">{stats.protectedReadyRegions}</p>
+          </div>
+        </div>
+
+        <div className="admin-stat-card">
+          <div
+            className="stat-icon"
+            style={{ background: "rgba(239, 71, 111, 0.1)", color: "#ef476f" }}
+          >
+            📍
+          </div>
+          <div className="stat-details">
+            <h3>Top Coverage State</h3>
+            <p className="stat-value">{stats.topStateByCoverage}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-insight-panel">
+        <h3>Operational Summary</h3>
+        <ul>
+          <li>
+            {stats.totalRegions} regions mapped across {stats.statesCovered} states.
+          </li>
+          <li>
+            {stats.protectedReadyRegions} regions already configured for protected farming.
+          </li>
+          <li>
+            Highest regional coverage currently in <strong>{stats.topStateByCoverage}</strong>.
+          </li>
+          <li>
+            Keep category-wise cost multipliers updated for realistic estimator output.
+          </li>
+        </ul>
       </div>
     </div>
   );

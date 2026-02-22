@@ -40,6 +40,11 @@ const CROP_ICONS: Record<string, string> = {
   Banana: "🍌",
   Mango: "🥭",
 };
+const FARMING_TYPE_OPTIONS = [
+  { value: "open_field", label: "Open Field" },
+  { value: "protected", label: "Protected" },
+  { value: "hydroponic", label: "Hydroponic" },
+];
 
 const formatCropLabel = (crop: Crop, context: "menu" | "value") => {
   const icon = CROP_ICONS[crop.name] || "🌱";
@@ -110,6 +115,9 @@ const Sensitivity: React.FC = () => {
 
   const [landSize, setLandSize] = useState(2);
   const [irrigationType, setIrrigationType] = useState("");
+  const [farmingType, setFarmingType] = useState<
+    "open_field" | "protected" | "hydroponic"
+  >("open_field");
 
   // Variations (Sliders from -50 to +50)
   const [priceVariation, setPriceVariation] = useState(0);
@@ -194,6 +202,24 @@ const Sensitivity: React.FC = () => {
   }));
 
   const selectedCrop = crops.find((c) => c._id === cropId);
+  const selectedRegion = regions.find((r) => r._id === regionId);
+  const farmingTypeOptionsForRegion =
+    selectedRegion?.supportedFarmingTypes?.length
+      ? FARMING_TYPE_OPTIONS.filter((opt) =>
+          selectedRegion.supportedFarmingTypes?.includes(opt.value),
+        )
+      : FARMING_TYPE_OPTIONS;
+
+  useEffect(() => {
+    if (!farmingTypeOptionsForRegion.find((ft) => ft.value === farmingType)) {
+      setFarmingType(
+        (farmingTypeOptionsForRegion[0]?.value as
+          | "open_field"
+          | "protected"
+          | "hydroponic") || "open_field",
+      );
+    }
+  }, [regionId]);
 
   // 3. States
   const getValidRegionsForCrop = () => {
@@ -251,6 +277,7 @@ const Sensitivity: React.FC = () => {
           regionId,
           landSize,
           irrigationType,
+          farmingType,
           priceVariation: 0,
           yieldVariation: 0,
           costVariation: 0,
@@ -264,7 +291,7 @@ const Sensitivity: React.FC = () => {
       }
     };
     fetchBase();
-  }, [cropId, regionId, landSize, irrigationType]);
+  }, [cropId, regionId, landSize, irrigationType, farmingType]);
 
   // Fetch Adjusted Sensitivity when sliders change (Debounced)
   useEffect(() => {
@@ -288,6 +315,7 @@ const Sensitivity: React.FC = () => {
           regionId,
           landSize,
           irrigationType,
+          farmingType,
           priceVariation,
           yieldVariation,
           costVariation,
@@ -307,6 +335,7 @@ const Sensitivity: React.FC = () => {
     regionId,
     landSize,
     irrigationType,
+    farmingType,
     baseResult,
   ]);
 
@@ -464,6 +493,25 @@ const Sensitivity: React.FC = () => {
               {irrigations.map((t) => (
                 <option key={t._id} value={t.normalizedType}>
                   {t.typeName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
+            <label>Farming Type</label>
+            <select
+              className="form-control"
+              style={{ height: "45px" }}
+              value={farmingType}
+              onChange={(e) =>
+                setFarmingType(
+                  e.target.value as "open_field" | "protected" | "hydroponic",
+                )
+              }
+            >
+              {farmingTypeOptionsForRegion.map((ft) => (
+                <option key={ft.value} value={ft.value}>
+                  {ft.label}
                 </option>
               ))}
             </select>

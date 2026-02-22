@@ -4,6 +4,8 @@
 
 import { Document } from "mongoose";
 
+export type FarmingType = "open_field" | "protected" | "hydroponic";
+
 // --- Crop Types ---
 export interface ICropDefaultCosts {
   seeds: number;
@@ -87,6 +89,10 @@ export interface IRegion extends Document {
   yieldMultiplier: number;
   irrigationAvailability: "Good" | "Moderate" | "Poor";
   waterAvailabilityMM: number; // total water available per season
+  supportedFarmingTypes: FarmingType[];
+  recommendedIrrigationTypes: string[];
+  costAdjustmentByCategory: Record<string, number>;
+  costAdjustmentByFarmingType: Record<string, number>;
   riskFactors: IRiskFactor[];
   govSchemes: IGovScheme[];
   weatherMock: IWeatherMock;
@@ -114,6 +120,8 @@ export interface ICostEstimate {
   totalCost: number;
   costBreakdown: Record<string, ICostBreakdownItem>;
   landSize: number;
+  categoryCostMultiplier: number;
+  farmingTypeCostMultiplier: number;
 }
 
 // --- Profit Types ---
@@ -229,6 +237,7 @@ export interface IEstimateRequestBody {
   regionId: string;
   landSize: number;
   irrigationType: string;
+  farmingType?: FarmingType;
   priceSource?: "msp" | "market" | "mandi" | "online";
   costs?: Partial<ICropDefaultCosts>;
 }
@@ -241,6 +250,7 @@ export interface IEstimateResult {
     region: string;
     landSize: string;
     irrigationType: string;
+    farmingType?: FarmingType;
     growthDuration: string;
   };
   yield: IYieldEstimate;
@@ -268,11 +278,13 @@ export interface IScenarioRequest {
   scenarioA: {
     landSize: number;
     irrigationType: string;
+    farmingType?: FarmingType;
     costs?: Partial<ICropDefaultCosts>;
   };
   scenarioB: {
     landSize: number;
     irrigationType: string;
+    farmingType?: FarmingType;
     costs?: Partial<ICropDefaultCosts>;
   };
 }

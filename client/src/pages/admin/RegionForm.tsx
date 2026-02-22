@@ -2,6 +2,60 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 
+const REGION_PRESETS: Record<string, any> = {
+  Bihar: {
+    soilType: "Alluvial",
+    avgRainfallMM: 1120,
+    yieldMultiplier: 1.04,
+    irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 780,
+    supportedFarmingTypes: ["open_field", "protected"],
+    recommendedIrrigationTypes: ["drip", "canal", "borewell"],
+    costAdjustmentByCategory: {
+      Cereals: 0.96,
+      "Cash Crops": 1.03,
+      Oilseeds: 0.98,
+      Horticulture: 1.14,
+      Spices: 1.08,
+      Pulses: 0.97,
+    },
+  },
+  Maharashtra: {
+    soilType: "Black Cotton Soil",
+    avgRainfallMM: 740,
+    yieldMultiplier: 1.11,
+    irrigationAvailability: "Moderate",
+    waterAvailabilityMM: 640,
+    supportedFarmingTypes: ["open_field", "protected", "hydroponic"],
+    recommendedIrrigationTypes: ["drip", "sprinkler", "borewell"],
+    costAdjustmentByCategory: {
+      Cereals: 1.02,
+      "Cash Crops": 1.05,
+      Oilseeds: 1.01,
+      Horticulture: 1.1,
+      Spices: 1.06,
+      Pulses: 1.0,
+    },
+  },
+  Punjab: {
+    soilType: "Alluvial",
+    avgRainfallMM: 670,
+    yieldMultiplier: 1.23,
+    irrigationAvailability: "Good",
+    waterAvailabilityMM: 980,
+    supportedFarmingTypes: ["open_field", "protected"],
+    recommendedIrrigationTypes: ["canal", "sprinkler", "drip"],
+    costAdjustmentByCategory: {
+      Cereals: 1.01,
+      "Cash Crops": 1.04,
+      Oilseeds: 0.99,
+      Horticulture: 1.08,
+      Spices: 1.05,
+      Pulses: 1.0,
+    },
+  },
+};
+
 const RegionForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -22,6 +76,21 @@ const RegionForm: React.FC = () => {
     yieldMultiplier: 1.0,
     irrigationAvailability: "Moderate",
     waterAvailabilityMM: 600,
+    supportedFarmingTypes: ["open_field"],
+    recommendedIrrigationTypes: [],
+    costAdjustmentByCategory: {
+      Cereals: 1,
+      "Cash Crops": 1,
+      Oilseeds: 1,
+      Horticulture: 1,
+      Spices: 1,
+      Pulses: 1,
+    },
+    costAdjustmentByFarmingType: {
+      open_field: 1,
+      protected: 1.2,
+      hydroponic: 1.4,
+    },
     riskFactors: [],
     govSchemes: [],
     weatherMock: {
@@ -61,7 +130,21 @@ const RegionForm: React.FC = () => {
       // Let's assume we use /api/regions/:id for now or we build it.
       const res = await axios.get(`http://localhost:5001/api/regions/${id}`);
       if (res.data.success) {
-        setFormData(res.data.data);
+        const region = res.data.data;
+        setFormData((prev: any) => ({
+          ...prev,
+          ...region,
+          supportedFarmingTypes:
+            region.supportedFarmingTypes || prev.supportedFarmingTypes,
+          recommendedIrrigationTypes:
+            region.recommendedIrrigationTypes ||
+            prev.recommendedIrrigationTypes,
+          costAdjustmentByCategory:
+            region.costAdjustmentByCategory || prev.costAdjustmentByCategory,
+          costAdjustmentByFarmingType:
+            region.costAdjustmentByFarmingType ||
+            prev.costAdjustmentByFarmingType,
+        }));
       }
     } catch (err: any) {
       setError("Failed to load region details");
@@ -80,25 +163,33 @@ const RegionForm: React.FC = () => {
   };
 
   const handleAutoFill = () => {
-    if (!formData.district) {
-      alert("Please enter a District Name first to fetch agronomic defaults.");
+    if (!formData.state) {
+      alert("Please choose State first.");
       return;
     }
 
-    // Mocking an AI or Govt DB extraction based on district name
-    const mockRainfall = 400 + Math.floor(Math.random() * 800);
+    const preset = REGION_PRESETS[formData.state] || null;
+    const mockRainfall = preset?.avgRainfallMM || 400 + Math.floor(Math.random() * 800);
     setFormData((prev: any) => ({
       ...prev,
-      soilType: [
-        "Black Cotton Soil",
-        "Alluvial Soil",
-        "Red Soil",
-        "Laterite Soil",
-      ][Math.floor(Math.random() * 4)],
+      soilType:
+        preset?.soilType ||
+        [
+          "Black Cotton Soil",
+          "Alluvial Soil",
+          "Red Soil",
+          "Laterite Soil",
+        ][Math.floor(Math.random() * 4)],
       avgRainfallMM: mockRainfall,
-      yieldMultiplier: 0.8 + Math.random() * 0.4,
-      irrigationAvailability: mockRainfall > 800 ? "Good" : "Moderate",
-      waterAvailabilityMM: mockRainfall + 200,
+      yieldMultiplier: preset?.yieldMultiplier || 0.8 + Math.random() * 0.4,
+      irrigationAvailability:
+        preset?.irrigationAvailability || (mockRainfall > 800 ? "Good" : "Moderate"),
+      waterAvailabilityMM: preset?.waterAvailabilityMM || mockRainfall + 200,
+      supportedFarmingTypes: preset?.supportedFarmingTypes || prev.supportedFarmingTypes,
+      recommendedIrrigationTypes:
+        preset?.recommendedIrrigationTypes || prev.recommendedIrrigationTypes,
+      costAdjustmentByCategory:
+        preset?.costAdjustmentByCategory || prev.costAdjustmentByCategory,
       weatherMock: {
         ...prev.weatherMock,
         avgTempC: 25 + Math.floor(Math.random() * 10),
@@ -117,17 +208,23 @@ const RegionForm: React.FC = () => {
     try {
       const token = localStorage.getItem("adminToken");
       const config = { headers: { Authorization: `Bearer ${token}` } };
+      const payload = {
+        ...formData,
+        recommendedIrrigationTypes: (formData.recommendedIrrigationTypes || [])
+          .map((v: string) => v.toLowerCase().trim())
+          .filter(Boolean),
+      };
 
       if (isEdit) {
         await axios.put(
           `http://localhost:5001/api/admin/regions/${id}`,
-          formData,
+          payload,
           config,
         );
       } else {
         await axios.post(
           `http://localhost:5001/api/admin/regions`,
-          formData,
+          payload,
           config,
         );
       }
@@ -245,6 +342,28 @@ const RegionForm: React.FC = () => {
                 required
               />
             </div>
+            <div className="form-group">
+              <label>Supported Farming Types</label>
+              <div style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
+                {["open_field", "protected", "hydroponic"].map((type) => (
+                  <label key={type} style={{ display: "flex", gap: "0.4rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={(formData.supportedFarmingTypes || []).includes(type)}
+                      onChange={(e) => {
+                        setFormData((prev: any) => ({
+                          ...prev,
+                          supportedFarmingTypes: e.target.checked
+                            ? [...prev.supportedFarmingTypes, type]
+                            : prev.supportedFarmingTypes.filter((x: string) => x !== type),
+                        }));
+                      }}
+                    />
+                    {type}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Card 2: Climate */}
@@ -290,6 +409,23 @@ const RegionForm: React.FC = () => {
                 />
               </div>
             </div>
+            <div className="form-group">
+              <label>Recommended Irrigation Types (comma separated)</label>
+              <input
+                type="text"
+                value={(formData.recommendedIrrigationTypes || []).join(", ")}
+                onChange={(e) =>
+                  setFormData((prev: any) => ({
+                    ...prev,
+                    recommendedIrrigationTypes: e.target.value
+                      .split(",")
+                      .map((v) => v.trim())
+                      .filter(Boolean),
+                  }))
+                }
+                placeholder="drip, sprinkler, borewell"
+              />
+            </div>
           </div>
 
           {/* Card 3: Regional Efficiency */}
@@ -315,6 +451,52 @@ const RegionForm: React.FC = () => {
                 required
                 step="0.01"
               />
+            </div>
+            <div className="form-group">
+              <label>Category Cost Multipliers</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                {Object.keys(formData.costAdjustmentByCategory || {}).map((cat) => (
+                  <input
+                    key={cat}
+                    type="number"
+                    step="0.01"
+                    value={formData.costAdjustmentByCategory[cat]}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({
+                        ...prev,
+                        costAdjustmentByCategory: {
+                          ...prev.costAdjustmentByCategory,
+                          [cat]: Number(e.target.value) || 1,
+                        },
+                      }))
+                    }
+                    placeholder={`${cat} multiplier`}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Farming Type Cost Multipliers</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+                {Object.keys(formData.costAdjustmentByFarmingType || {}).map((ft) => (
+                  <input
+                    key={ft}
+                    type="number"
+                    step="0.01"
+                    value={formData.costAdjustmentByFarmingType[ft]}
+                    onChange={(e) =>
+                      setFormData((prev: any) => ({
+                        ...prev,
+                        costAdjustmentByFarmingType: {
+                          ...prev.costAdjustmentByFarmingType,
+                          [ft]: Number(e.target.value) || 1,
+                        },
+                      }))
+                    }
+                    placeholder={`${ft} multiplier`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>

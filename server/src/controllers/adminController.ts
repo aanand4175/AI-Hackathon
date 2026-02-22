@@ -71,12 +71,43 @@ export const getDashboardStats = async (
   try {
     const totalCrops = await Crop.countDocuments();
     const totalRegions = await Region.countDocuments();
+    const statesCovered = (await Region.distinct("state")).length;
+    const totalHighDemandCrops = await Crop.countDocuments({ marketDemand: "High" });
+
+    const regionDocs = await Region.find();
+    const avgYieldMultiplier =
+      regionDocs.length > 0
+        ? Math.round(
+            (regionDocs.reduce((sum, r) => sum + (r.yieldMultiplier || 1), 0) /
+              regionDocs.length) *
+              100,
+          ) / 100
+        : 1;
+
+    const protectedReadyRegions = regionDocs.filter((r: any) =>
+      (r.supportedFarmingTypes || []).includes("protected"),
+    ).length;
+
+    const stateCounts = regionDocs.reduce(
+      (acc: Record<string, number>, region: any) => {
+        acc[region.state] = (acc[region.state] || 0) + 1;
+        return acc;
+      },
+      {},
+    );
+    const topStateByCoverage =
+      Object.entries(stateCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
 
     res.json({
       success: true,
       data: {
         totalCrops,
         totalRegions,
+        statesCovered,
+        totalHighDemandCrops,
+        avgYieldMultiplier,
+        protectedReadyRegions,
+        topStateByCoverage,
         recentEstimates: 142, // Placeholder
         activeUsers: 85, // Placeholder
       },

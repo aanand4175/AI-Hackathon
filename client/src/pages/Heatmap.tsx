@@ -81,6 +81,11 @@ const COLORS_HEAT = [
   "#118ab2",
   "#118ab2",
 ];
+const FARMING_TYPE_OPTIONS = [
+  { value: "open_field", label: "Open Field" },
+  { value: "protected", label: "Protected" },
+  { value: "hydroponic", label: "Hydroponic" },
+];
 
 const customSelectStyles = {
   control: (base: any, state: any) => ({
@@ -125,6 +130,9 @@ const Heatmap: React.FC = () => {
   const [stateId, setStateId] = useState("");
   const [regionId, setRegionId] = useState("");
   const [irrigationType, setIrrigationType] = useState("");
+  const [farmingType, setFarmingType] = useState<
+    "open_field" | "protected" | "hydroponic"
+  >("open_field");
   const [categories, setCategories] = useState<any[]>([]);
   const [irrigations, setIrrigations] = useState<any[]>([]);
   const [data, setData] = useState<HeatmapPoint[]>([]);
@@ -190,7 +198,12 @@ const Heatmap: React.FC = () => {
     if (!cropId || !regionId) return;
     setLoading(true);
     try {
-      const res = await fetchHeatmap({ cropId, regionId, irrigationType });
+      const res = await fetchHeatmap({
+        cropId,
+        regionId,
+        irrigationType,
+        farmingType,
+      });
       setData(res.data.data || []);
     } catch {
       /* ignore */
@@ -218,6 +231,19 @@ const Heatmap: React.FC = () => {
   }));
 
   const selectedCrop = crops.find((c) => c._id === cropId);
+  const selectedRegion = regions.find((r) => r._id === regionId);
+  const farmingTypeOptionsForRegion =
+    selectedRegion?.supportedFarmingTypes?.length
+      ? FARMING_TYPE_OPTIONS.filter((opt) =>
+          selectedRegion.supportedFarmingTypes?.includes(opt.value),
+        )
+      : FARMING_TYPE_OPTIONS;
+
+  useEffect(() => {
+    if (!farmingTypeOptionsForRegion.find((ft) => ft.value === farmingType)) {
+      setFarmingType((farmingTypeOptionsForRegion[0]?.value as any) || "open_field");
+    }
+  }, [regionId]);
 
   // 3. States
   const getValidRegionsForCrop = () => {
@@ -357,6 +383,25 @@ const Heatmap: React.FC = () => {
               {irrigations.map((t) => (
                 <option key={t._id} value={t.normalizedType}>
                   {t.typeName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group" style={{ minWidth: "150px" }}>
+            <label>Farming Type</label>
+            <select
+              className="form-control"
+              style={{ height: "45px" }}
+              value={farmingType}
+              onChange={(e) =>
+                setFarmingType(
+                  e.target.value as "open_field" | "protected" | "hydroponic",
+                )
+              }
+            >
+              {farmingTypeOptionsForRegion.map((ft) => (
+                <option key={ft.value} value={ft.value}>
+                  {ft.label}
                 </option>
               ))}
             </select>

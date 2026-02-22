@@ -32,6 +32,22 @@ const regionSchema = new Schema<IRegion>(
       type: Number,
       default: 600,
     },
+    supportedFarmingTypes: {
+      type: [String],
+      default: ["open_field"],
+    },
+    recommendedIrrigationTypes: {
+      type: [String],
+      default: [],
+    },
+    costAdjustmentByCategory: {
+      type: Object,
+      default: {},
+    },
+    costAdjustmentByFarmingType: {
+      type: Object,
+      default: {},
+    },
     riskFactors: [
       {
         factor: String,

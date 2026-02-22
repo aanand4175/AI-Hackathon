@@ -17,6 +17,12 @@ interface IrrigationOption {
   label: string;
 }
 
+const FARMING_TYPES = [
+  { value: "open_field", label: "Open Field Farming" },
+  { value: "protected", label: "Protected Farming (Polyhouse/Net House)" },
+  { value: "hydroponic", label: "Soilless/Hydroponic Farming" },
+];
+
 // Irrigation types will be dynamically loaded from Master Data API
 
 const PRICE_SOURCES = [
@@ -147,6 +153,7 @@ const Estimator: React.FC = () => {
     regionId: "",
     landSize: 2,
     irrigationType: "",
+    farmingType: "open_field",
     priceSource: "market",
     costs: {
       seeds: 0,
@@ -192,12 +199,22 @@ const Estimator: React.FC = () => {
         const activeIrrigations = (irrigationsRes?.data || []).filter(
           (i: any) => i.active,
         );
-        setIrrigations(activeIrrigations);
+        const normalizedIrrigations = activeIrrigations
+          .map((i: any) => ({
+            ...i,
+            normalizedType: normalizeIrrigationType(i.typeName),
+          }))
+          .filter(
+            (irr: any, idx: number, arr: any[]) =>
+              idx ===
+              arr.findIndex((x: any) => x.normalizedType === irr.normalizedType),
+          );
+        setIrrigations(normalizedIrrigations);
 
-        if (activeIrrigations.length > 0 && !formData.irrigationType) {
+        if (normalizedIrrigations.length > 0 && !formData.irrigationType) {
           setFormData((prev) => ({
             ...prev,
-            irrigationType: activeIrrigations[0].typeName,
+            irrigationType: normalizedIrrigations[0].normalizedType,
           }));
         }
       } catch {
@@ -276,6 +293,13 @@ const Estimator: React.FC = () => {
 
   const selectedRegion = regions.find((r) => r._id === formData.regionId);
 
+  useEffect(() => {
+    if (!selectedRegion?.recommendedIrrigationTypes?.length) return;
+    const preferred = selectedRegion.recommendedIrrigationTypes[0];
+    if (!preferred) return;
+    setFormData((prev) => ({ ...prev, irrigationType: preferred }));
+  }, [formData.regionId]);
+
   // Auto-clear downstream dropdowns if parent changes
   useEffect(() => {
     setFormData((p) => ({ ...p, cropId: "", regionId: "" }));
@@ -317,6 +341,7 @@ const Estimator: React.FC = () => {
         regionId: formData.regionId,
         landSize: formData.landSize,
         irrigationType: formData.irrigationType,
+        farmingType: formData.farmingType,
         priceSource: formData.priceSource,
         costs,
       };
@@ -601,12 +626,31 @@ const Estimator: React.FC = () => {
                 onChange={handleChange}
               >
                 {irrigations.map((type) => (
-                  <option key={type._id} value={type.typeName}>
-                    {type.typeName} (₹{type.costPerAcre}/Acre)
+                  <option key={type._id} value={type.normalizedType}>
+                    {formatIrrigationLabel(type.normalizedType)} (₹
+                    {type.costPerAcre}/Acre)
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+
+          <div className="form-group" style={{ marginTop: "0.5rem" }}>
+            <label>
+              Farming Method <span className="required">*</span>
+            </label>
+            <select
+              name="farmingType"
+              className="form-control"
+              value={formData.farmingType || "open_field"}
+              onChange={handleChange}
+            >
+              {FARMING_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group" style={{ marginTop: "1rem" }}>
@@ -724,3 +768,20 @@ const Estimator: React.FC = () => {
 };
 
 export default Estimator;
+  const normalizeIrrigationType = (raw: string): string => {
+    const cleaned = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (cleaned.includes("tubewell")) return "tubewell";
+    if (cleaned.includes("borewell")) return "borewell";
+    if (cleaned.includes("sprinkler")) return "sprinkler";
+    if (cleaned.includes("drip")) return "drip";
+    if (cleaned.includes("rainfed")) return "rainfed";
+    if (cleaned.includes("canal")) return "canal";
+    if (cleaned.includes("flood")) return "flood";
+    return cleaned || "canal";
+  };
+
+  const formatIrrigationLabel = (value: string): string =>
+    value
+      .split("_")
+      .join(" ")
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
