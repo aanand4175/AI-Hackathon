@@ -11,6 +11,7 @@ export interface Crop {
   marketPricePerQuintal: number;
   waterRequirement: string;
   marketDemand?: string;
+  soilSuitability: Record<string, number>;
 }
 
 export interface Region {

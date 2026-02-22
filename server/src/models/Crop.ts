@@ -91,8 +91,7 @@ const cropSchema = new Schema<ICrop>(
       },
     ],
     soilSuitability: {
-      type: Map,
-      of: Number,
+      type: Object,
       default: {},
     },
     temperatureRange: {

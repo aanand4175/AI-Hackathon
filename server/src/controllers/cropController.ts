@@ -5,9 +5,7 @@ import Crop from "../models/Crop";
 // @route   GET /api/crops
 const getAllCrops = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const crops = await Crop.find().select(
-      "name category baseYieldPerAcre mspPerQuintal marketPricePerQuintal waterRequirement",
-    );
+    const crops = await Crop.find();
     res.json({ success: true, count: crops.length, data: crops });
   } catch (error: unknown) {
     const err = error as Error;

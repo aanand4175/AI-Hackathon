@@ -193,7 +193,7 @@ const Heatmap: React.FC = () => {
                       background: "#1a1a2e",
                       border: "1px solid rgba(255,255,255,0.1)",
                     }}
-                    formatter={(v: number) => formatINR(v)}
+                    formatter={(v: any) => formatINR(Number(v) || 0)}
                     labelFormatter={(l) => `${l} acres`}
                   />
                   <defs>
@@ -252,7 +252,7 @@ const Heatmap: React.FC = () => {
                       background: "#1a1a2e",
                       border: "1px solid rgba(255,255,255,0.1)",
                     }}
-                    formatter={(v: number) => `${v}%`}
+                    formatter={(v: any) => `${v}%`}
                     labelFormatter={(l) => `${l} acres`}
                   />
                   <Bar dataKey="roi" radius={[6, 6, 0, 0]} name="ROI %">
