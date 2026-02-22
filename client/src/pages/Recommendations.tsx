@@ -54,6 +54,8 @@ const Recommendations: React.FC = () => {
   );
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [error, setError] = useState<string>("");
+  const [hasFetched, setHasFetched] = useState(false);
 
   const uniqueStates = Array.from(new Set(regions.map((r) => r.state))).sort();
   const stateOptions = uniqueStates.map((st) => ({ value: st, label: st }));
@@ -71,6 +73,8 @@ const Recommendations: React.FC = () => {
   useEffect(() => {
     setSelectedRegion("");
     setRecommendations([]);
+    setHasFetched(false);
+    setError("");
   }, [stateId]);
 
   useEffect(() => {
@@ -87,18 +91,31 @@ const Recommendations: React.FC = () => {
     load();
   }, []);
 
-  const handleFetch = async () => {
-    if (!selectedRegion) return;
+  const handleFetch = async (regionId: string) => {
+    if (!regionId) return;
     setLoading(true);
+    setError("");
     try {
-      const res = await fetchRecommendations(selectedRegion);
+      const res = await fetchRecommendations(regionId);
       setRecommendations(res.data.data || []);
+      setHasFetched(true);
     } catch {
-      /* Ignore */
+      setRecommendations([]);
+      setError("Recommendations fetch nahi ho paayi. Please retry.");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!selectedRegion) {
+      setRecommendations([]);
+      setHasFetched(false);
+      setError("");
+      return;
+    }
+    handleFetch(selectedRegion);
+  }, [selectedRegion]);
 
   const regionObj = regions.find((r) => r._id === selectedRegion);
 
@@ -159,13 +176,22 @@ const Recommendations: React.FC = () => {
           </div>
           <button
             className="btn btn-primary"
-            onClick={handleFetch}
+            onClick={() => handleFetch(selectedRegion)}
             disabled={!selectedRegion || loading}
             style={{ height: "45px" }}
           >
-            {loading ? "Analyzing..." : "🔍 Get Recommendations"}
+            {loading ? "Analyzing..." : "🔄 Refresh"}
           </button>
         </div>
+
+        {stateId && selectedRegion && (
+          <div className="recommendation-meta-bar">
+            <span>
+              Showing top {recommendations.length || 0} crops for this district
+            </span>
+            <span>Ranking: Suitability + Risk + ROI + Confidence</span>
+          </div>
+        )}
 
         {regionObj && (
           <div className="region-info-bar">
@@ -247,6 +273,18 @@ const Recommendations: React.FC = () => {
                   </span>
                 </div>
 
+                {rec.recommendationScore !== undefined && (
+                  <p className="rec-score-line">
+                    Recommendation Score: {rec.recommendationScore}/100
+                  </p>
+                )}
+
+                {rec.matchHighlights && rec.matchHighlights.length > 0 && (
+                  <p className="rec-highlights">
+                    Why: {rec.matchHighlights.slice(0, 3).join(" | ")}
+                  </p>
+                )}
+
                 {/* Suitability bar */}
                 <div className="rec-suitability-bar">
                   <div className="rec-suit-track">
@@ -272,13 +310,22 @@ const Recommendations: React.FC = () => {
           </div>
         )}
 
-        {recommendations.length === 0 && selectedRegion && !loading && (
-          <div style={{ textAlign: "center", padding: "3rem", opacity: 0.6 }}>
+        {error && (
+          <div className="recommendation-status error">{error}</div>
+        )}
+
+        {recommendations.length === 0 &&
+          selectedRegion &&
+          !loading &&
+          hasFetched &&
+          !error && (
+          <div className="recommendation-status">
             <p>
-              Click "Get Recommendations" to see the best crops for your region.
+              Is region ke liye enough matching crops nahi mile. Dusra district
+              try karein.
             </p>
           </div>
-        )}
+          )}
       </div>
     </main>
   );

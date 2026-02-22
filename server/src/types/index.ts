@@ -288,6 +288,8 @@ export interface ICropRecommendation {
   confidence: number;
   suitabilityScore: number;
   marketDemand: string;
+  recommendationScore?: number;
+  matchHighlights?: string[];
 }
 
 // --- Irrigation Multipliers ---

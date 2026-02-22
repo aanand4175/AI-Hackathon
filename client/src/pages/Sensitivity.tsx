@@ -8,6 +8,7 @@ import {
   fetchMasterIrrigations,
 } from "../services/api";
 import type { Crop, Region } from "../types";
+import { getSoilSuitabilityScore } from "../utils/soil";
 import {
   BarChart,
   Bar,
@@ -40,47 +41,24 @@ const CROP_ICONS: Record<string, string> = {
   Mango: "🥭",
 };
 
-const formatCropLabel = (crop: Crop) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      width: "100%",
-    }}
-  >
-    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-      {crop.imageUrl ? (
-        <img
-          src={crop.imageUrl}
-          alt={crop.name}
-          style={{
-            width: "30px",
-            height: "30px",
-            borderRadius: "4px",
-            objectFit: "cover",
-          }}
-        />
-      ) : (
-        <span style={{ fontSize: "1.5rem" }}>
-          {CROP_ICONS[crop.name] || "🌱"}
-        </span>
-      )}
-      <strong style={{ marginLeft: "4px" }}>{crop.name}</strong>
+const formatCropLabel = (crop: Crop, context: "menu" | "value") => {
+  const icon = CROP_ICONS[crop.name] || "🌱";
+  if (context === "value") {
+    return (
+      <span className="crop-select-value">
+        <span>{icon}</span> {crop.name}
+      </span>
+    );
+  }
+  return (
+    <div className="crop-option-row">
+      <span className="crop-option-name">
+        <span>{icon}</span> {crop.name}
+      </span>
+      <span className="crop-option-msp">₹{crop.mspPerQuintal}</span>
     </div>
-    <span
-      style={{
-        background: "rgba(6, 214, 160, 0.1)",
-        color: "#06d6a0",
-        padding: "2px 8px",
-        borderRadius: "12px",
-        fontSize: "0.8rem",
-      }}
-    >
-      MSP: ₹{crop.mspPerQuintal}
-    </span>
-  </div>
-);
+  );
+};
 
 // Irrigation types will be dynamically loaded from Master Data API
 
@@ -103,6 +81,7 @@ const customSelectStyles = {
     border: "1px solid rgba(255, 255, 255, 0.2)",
     zIndex: 100,
   }),
+  menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
   option: (base: any, state: any) => ({
     ...base,
     backgroundColor: state.isFocused ? "rgba(6, 214, 160, 0.2)" : "transparent",
@@ -112,6 +91,10 @@ const customSelectStyles = {
   }),
   singleValue: (base: any) => ({ ...base, color: "#fff" }),
   input: (base: any) => ({ ...base, color: "#fff" }),
+  valueContainer: (base: any) => ({
+    ...base,
+    paddingRight: "10px",
+  }),
 };
 
 const Sensitivity: React.FC = () => {
@@ -137,6 +120,22 @@ const Sensitivity: React.FC = () => {
   const [adjustedResult, setAdjustedResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const selectOverlayProps = {
+    menuPortalTarget: document.body,
+    menuPosition: "fixed" as const,
+  };
+
+  const normalizeIrrigationType = (raw: string): string => {
+    const cleaned = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (cleaned.includes("tubewell")) return "tubewell";
+    if (cleaned.includes("borewell")) return "borewell";
+    if (cleaned.includes("sprinkler")) return "sprinkler";
+    if (cleaned.includes("drip")) return "drip";
+    if (cleaned.includes("rainfed")) return "rainfed";
+    if (cleaned.includes("canal")) return "canal";
+    if (cleaned.includes("flood")) return "flood";
+    return cleaned || "canal";
+  };
 
   // Load initial crops & regions
   useEffect(() => {
@@ -155,9 +154,19 @@ const Sensitivity: React.FC = () => {
         const activeIrrs = (irrRes.data.data || []).filter(
           (i: any) => i.active,
         );
-        setIrrigations(activeIrrs);
+        const normalizedIrrs = activeIrrs
+          .map((i: any) => ({
+            ...i,
+            normalizedType: normalizeIrrigationType(i.typeName),
+          }))
+          .filter(
+            (irr: any, idx: number, arr: any[]) =>
+              idx ===
+              arr.findIndex((x: any) => x.normalizedType === irr.normalizedType),
+          );
+        setIrrigations(normalizedIrrs);
         if (activeIrrs.length > 0 && !irrigationType) {
-          setIrrigationType(activeIrrs[0].typeName);
+          setIrrigationType(normalizedIrrs[0].normalizedType);
         }
       } catch {
         /* ignore */
@@ -190,7 +199,7 @@ const Sensitivity: React.FC = () => {
   const getValidRegionsForCrop = () => {
     if (!selectedCrop) return regions;
     return regions.filter((region) => {
-      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
+      const suitability = getSoilSuitabilityScore(selectedCrop, region);
       return suitability > 0;
     });
   };
@@ -350,13 +359,14 @@ const Sensitivity: React.FC = () => {
           style={{
             flexWrap: "wrap",
             marginBottom: "2rem",
-            alignItems: "flex-end",
+            alignItems: "flex-start",
           }}
         >
           <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
             <label>1. Category</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={categoryOptions}
               placeholder="Category"
               value={
@@ -369,12 +379,16 @@ const Sensitivity: React.FC = () => {
             <label>2. Crop</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={cropOptions}
               placeholder="Crop"
               isDisabled={!categoryId}
               isSearchable={true}
-              formatOptionLabel={(option: any) =>
-                formatCropLabel(option.cropObj)
+              formatOptionLabel={(option: any, meta: any) =>
+                formatCropLabel(
+                  option.cropObj,
+                  meta.context === "value" ? "value" : "menu",
+                )
               }
               value={cropOptions.find((o) => o.value === cropId) || null}
               onChange={(s) => setCropId(s?.value || "")}
@@ -384,6 +398,7 @@ const Sensitivity: React.FC = () => {
             <label>3. State</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={stateOptions}
               placeholder="State"
               isDisabled={!cropId}
@@ -395,6 +410,7 @@ const Sensitivity: React.FC = () => {
             <label>4. Region</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={regionOptions}
               placeholder="District"
               isDisabled={!stateId}
@@ -410,7 +426,7 @@ const Sensitivity: React.FC = () => {
           style={{
             flexWrap: "wrap",
             marginBottom: "2rem",
-            alignItems: "flex-end",
+            alignItems: "flex-start",
           }}
         >
           <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
@@ -426,7 +442,12 @@ const Sensitivity: React.FC = () => {
             />
             <div className="land-size-presets">
               {[1, 2, 5, 10].map((s) => (
-                <button key={s} type="button" onClick={() => setLandSize(s)}>
+                <button
+                  key={s}
+                  type="button"
+                  className={landSize === s ? "land-preset-btn active" : "land-preset-btn"}
+                  onClick={() => setLandSize(s)}
+                >
                   {s}A
                 </button>
               ))}
@@ -441,7 +462,7 @@ const Sensitivity: React.FC = () => {
               onChange={(e) => setIrrigationType(e.target.value)}
             >
               {irrigations.map((t) => (
-                <option key={t._id} value={t.typeName}>
+                <option key={t._id} value={t.normalizedType}>
                   {t.typeName}
                 </option>
               ))}

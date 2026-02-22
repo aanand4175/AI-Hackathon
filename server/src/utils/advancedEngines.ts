@@ -16,6 +16,41 @@ import type {
   IRiskAssessment,
 } from "../types";
 
+const normalizeSoilKey = (soilType: string): string =>
+  soilType.toLowerCase().replace(/[^a-z]/g, "");
+
+const getSoilSuitabilityScore = (crop: ICrop, regionSoilType: string): number => {
+  const soilSuit = crop.soilSuitability as unknown as Record<string, number>;
+  if (!soilSuit || Object.keys(soilSuit).length === 0) return 50;
+
+  if (typeof soilSuit[regionSoilType] === "number") return soilSuit[regionSoilType];
+
+  const normalizedRegionSoil = normalizeSoilKey(regionSoilType);
+
+  for (const [soilName, score] of Object.entries(soilSuit)) {
+    if (normalizeSoilKey(soilName) === normalizedRegionSoil) return score;
+  }
+
+  const candidateScores: number[] = [];
+
+  if (normalizedRegionSoil.includes("black") && typeof soilSuit["Black Cotton Soil"] === "number") {
+    candidateScores.push(soilSuit["Black Cotton Soil"]);
+  }
+  if (normalizedRegionSoil.includes("red") && typeof soilSuit["Red Laterite"] === "number") {
+    candidateScores.push(soilSuit["Red Laterite"]);
+  }
+  if (normalizedRegionSoil.includes("alluvial")) {
+    if (typeof soilSuit["Alluvial"] === "number") candidateScores.push(soilSuit["Alluvial"]);
+    if (typeof soilSuit["Alluvial (Delta)"] === "number") {
+      candidateScores.push(soilSuit["Alluvial (Delta)"]);
+    }
+  }
+
+  if (candidateScores.length > 0) return Math.max(...candidateScores);
+
+  return 50;
+};
+
 /**
  * Profitability Confidence Score (AI-style scoring)
  */
@@ -39,8 +74,7 @@ export const calculateConfidence = (
   else if (crop.category === "Cereal") marketPriceStability = 85; // MSP backed
 
   // Soil condition (25%)
-  const soilSuit = crop.soilSuitability as unknown as Record<string, number>;
-  const soilCondition = soilSuit?.[region.soilType] || 50;
+  const soilCondition = getSoilSuitabilityScore(crop, region.soilType);
 
   // Irrigation reliability (20%)
   let irrigationReliability = 60;
@@ -117,8 +151,7 @@ export const calculateSuitability = (
   irrigationType: string,
 ): ICropSuitability => {
   // Soil match
-  const soilSuit = crop.soilSuitability as unknown as Record<string, number>;
-  const soilMatch = soilSuit?.[region.soilType] || 50;
+  const soilMatch = getSoilSuitabilityScore(crop, region.soilType);
 
   // Rainfall match
   const cropNeed = crop.waterRequirementMM || 500;

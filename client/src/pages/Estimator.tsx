@@ -10,6 +10,7 @@ import {
   fetchMasterCosts,
 } from "../services/api";
 import type { Crop, Region, FormData } from "../types";
+import { getSoilSuitabilityScore } from "../utils/soil";
 
 interface IrrigationOption {
   value: string;
@@ -251,7 +252,7 @@ const Estimator: React.FC = () => {
   const getValidRegionsForCrop = () => {
     if (!selectedCrop) return regions; // if no crop selected, return all
     return regions.filter((region) => {
-      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
+      const suitability = getSoilSuitabilityScore(selectedCrop, region);
       return suitability > 0;
     });
   };

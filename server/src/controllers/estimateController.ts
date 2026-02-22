@@ -211,7 +211,19 @@ const getRecommendations = async (
     }
 
     const crops = await Crop.find();
-    const recommendations = crops.map((crop) => {
+    const riskLevelToScore: Record<string, number> = {
+      Low: 100,
+      Moderate: 65,
+      High: 30,
+    };
+
+    const normalizeRoi = (roi: number): number => {
+      const bounded = Math.max(-50, Math.min(roi, 250));
+      return Math.round(((bounded + 50) / 300) * 100);
+    };
+
+    const recommendations = crops
+      .map((crop) => {
       const yieldEst = calculateExpectedYield(crop, region, 1, "drip"); // standard 1 acre, drip
       const costEst = calculateTotalCost(crop, 1, {});
       const profitEst = calculateProfitability(
@@ -223,6 +235,20 @@ const getRecommendations = async (
       const riskAss = calculateRiskScore(crop, region, "drip");
       const confidence = calculateConfidence(crop, region, "drip", riskAss);
       const suitability = calculateSuitability(crop, region, "drip");
+      const riskScore = riskLevelToScore[riskAss.riskLevel] ?? 50;
+      const roiScore = normalizeRoi(profitEst.roiAtMSP);
+      const recommendationScore = Math.round(
+        suitability.overall * 0.45 +
+          confidence.overall * 0.25 +
+          roiScore * 0.2 +
+          riskScore * 0.1,
+      );
+
+      const matchHighlights = [
+        `Soil match ${suitability.soilMatch}/100`,
+        `Rainfall fit ${suitability.rainfallMatch}/100`,
+        `Risk ${riskAss.riskLevel}`,
+      ];
 
       return {
         cropId: crop._id,
@@ -234,11 +260,19 @@ const getRecommendations = async (
         confidence: confidence.overall,
         suitabilityScore: suitability.overall,
         marketDemand: crop.marketDemand || "Medium",
+        recommendationScore,
+        matchHighlights,
       };
-    });
+      })
+      .filter((item) => item.suitabilityScore >= 35);
 
-    // Sort by profit
-    recommendations.sort((a, b) => b.estimatedProfit - a.estimatedProfit);
+    // Sort by weighted recommendation score first, then profitability as tie-breaker
+    recommendations.sort((a, b) => {
+      if ((b.recommendationScore || 0) !== (a.recommendationScore || 0)) {
+        return (b.recommendationScore || 0) - (a.recommendationScore || 0);
+      }
+      return b.estimatedProfit - a.estimatedProfit;
+    });
 
     res.json({ success: true, data: recommendations.slice(0, 5) });
   } catch (error: unknown) {

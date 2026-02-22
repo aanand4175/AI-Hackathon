@@ -8,6 +8,7 @@ import {
   fetchMasterIrrigations,
 } from "../services/api";
 import type { Crop, Region } from "../types";
+import { getSoilSuitabilityScore } from "../utils/soil";
 import {
   BarChart,
   Bar,
@@ -23,6 +24,17 @@ interface ScenarioConfig {
   landSize: number;
   irrigationType: string;
 }
+
+interface BestScenarioSnapshot {
+  landSize: number;
+  irrigationType: string;
+  profit: number;
+  roi: number;
+  riskLevel: string;
+  confidence: number;
+}
+
+const LAND_SIZE_PRESETS = [1, 2, 5, 10];
 
 const CROP_ICONS: Record<string, string> = {
   Wheat: "🌾",
@@ -45,47 +57,24 @@ const CROP_ICONS: Record<string, string> = {
   Mango: "🥭",
 };
 
-const formatCropLabel = (crop: Crop) => (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      width: "100%",
-    }}
-  >
-    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-      {crop.imageUrl ? (
-        <img
-          src={crop.imageUrl}
-          alt={crop.name}
-          style={{
-            width: "30px",
-            height: "30px",
-            borderRadius: "4px",
-            objectFit: "cover",
-          }}
-        />
-      ) : (
-        <span style={{ fontSize: "1.5rem" }}>
-          {CROP_ICONS[crop.name] || "🌱"}
-        </span>
-      )}
-      <strong style={{ marginLeft: "4px" }}>{crop.name}</strong>
+const formatCropLabel = (crop: Crop, context: "menu" | "value") => {
+  const icon = CROP_ICONS[crop.name] || "🌱";
+  if (context === "value") {
+    return (
+      <span className="crop-select-value">
+        <span>{icon}</span> {crop.name}
+      </span>
+    );
+  }
+  return (
+    <div className="crop-option-row">
+      <span className="crop-option-name">
+        <span>{icon}</span> {crop.name}
+      </span>
+      <span className="crop-option-msp">₹{crop.mspPerQuintal}</span>
     </div>
-    <span
-      style={{
-        background: "rgba(6, 214, 160, 0.1)",
-        color: "#06d6a0",
-        padding: "2px 8px",
-        borderRadius: "12px",
-        fontSize: "0.8rem",
-      }}
-    >
-      MSP: ₹{crop.mspPerQuintal}
-    </span>
-  </div>
-);
+  );
+};
 
 // Irrigation types will be dynamically loaded from Master Data API
 
@@ -108,6 +97,7 @@ const customSelectStyles = {
     border: "1px solid rgba(255, 255, 255, 0.2)",
     zIndex: 100,
   }),
+  menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
   option: (base: any, state: any) => ({
     ...base,
     backgroundColor: state.isFocused ? "rgba(6, 214, 160, 0.2)" : "transparent",
@@ -117,6 +107,10 @@ const customSelectStyles = {
   }),
   singleValue: (base: any) => ({ ...base, color: "#fff" }),
   input: (base: any) => ({ ...base, color: "#fff" }),
+  valueContainer: (base: any) => ({
+    ...base,
+    paddingRight: "10px",
+  }),
 };
 
 const Compare: React.FC = () => {
@@ -139,8 +133,35 @@ const Compare: React.FC = () => {
     irrigationType: "drip",
   });
   const [result, setResult] = useState<any>(null);
+  const [bestScenarioByProfit, setBestScenarioByProfit] =
+    useState<BestScenarioSnapshot | null>(null);
+  const [bestScenarioByRoi, setBestScenarioByRoi] =
+    useState<BestScenarioSnapshot | null>(null);
+  const [bestCheckCount, setBestCheckCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [bestLoading, setBestLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [error, setError] = useState("");
+  const selectOverlayProps = {
+    menuPortalTarget: document.body,
+    menuPosition: "fixed" as const,
+  };
+
+  const normalizeIrrigationType = (raw: string): string => {
+    const cleaned = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    if (cleaned.includes("tubewell") || cleaned.includes("tubewell"))
+      return "tubewell";
+    if (cleaned.includes("borewell")) return "borewell";
+    if (cleaned.includes("sprinkler")) return "sprinkler";
+    if (cleaned.includes("drip")) return "drip";
+    if (cleaned.includes("rainfed")) return "rainfed";
+    if (cleaned.includes("canal")) return "canal";
+    if (cleaned.includes("flood")) return "flood";
+    return cleaned || "canal";
+  };
+
+  const formatIrrigationLabel = (value: string): string =>
+    value.charAt(0).toUpperCase() + value.slice(1);
 
   useEffect(() => {
     const load = async () => {
@@ -157,15 +178,27 @@ const Compare: React.FC = () => {
         const activeIrrs = (irrRes.data.data || []).filter(
           (i: any) => i.active,
         );
-        setIrrigations(activeIrrs);
-        if (activeIrrs.length > 0) {
+        const normalizedIrrs = activeIrrs
+          .map((i: any) => ({
+            ...i,
+            normalizedType: normalizeIrrigationType(i.typeName),
+          }))
+          .filter(
+            (irr: any, idx: number, arr: any[]) =>
+              idx ===
+              arr.findIndex((x: any) => x.normalizedType === irr.normalizedType),
+          );
+        setIrrigations(normalizedIrrs);
+        if (normalizedIrrs.length > 0) {
           setScenarioA((p) => ({
             ...p,
-            irrigationType: activeIrrs[0].typeName,
+            irrigationType: normalizedIrrs[0].normalizedType,
           }));
           setScenarioB((p) => ({
             ...p,
-            irrigationType: activeIrrs[1]?.typeName || activeIrrs[0].typeName,
+            irrigationType:
+              normalizedIrrs[1]?.normalizedType ||
+              normalizedIrrs[0].normalizedType,
           }));
         }
       } catch {
@@ -179,6 +212,7 @@ const Compare: React.FC = () => {
 
   const handleCompare = async () => {
     if (!cropId || !regionId) return;
+    setError("");
     setLoading(true);
     try {
       const res = await compareScenarios({
@@ -189,7 +223,7 @@ const Compare: React.FC = () => {
       });
       setResult(res.data.data);
     } catch {
-      /* ignore */
+      setError("Comparison fetch nahi ho paaya. Please retry.");
     } finally {
       setLoading(false);
     }
@@ -214,12 +248,13 @@ const Compare: React.FC = () => {
   }));
 
   const selectedCrop = crops.find((c) => c._id === cropId);
+  const selectedRegion = regions.find((r) => r._id === regionId);
 
   // 3. States
   const getValidRegionsForCrop = () => {
     if (!selectedCrop) return regions;
     return regions.filter((region) => {
-      const suitability = selectedCrop.soilSuitability?.[region.soilType] || 0;
+      const suitability = getSoilSuitabilityScore(selectedCrop, region);
       return suitability > 0;
     });
   };
@@ -237,6 +272,71 @@ const Compare: React.FC = () => {
     value: r._id,
     label: r.district,
   }));
+  const irrigationOptions = irrigations.map((i) => ({
+    value: i.normalizedType,
+    label: i.typeName,
+  }));
+
+  const isSameScenario =
+    scenarioA.landSize === scenarioB.landSize &&
+    scenarioA.irrigationType === scenarioB.irrigationType;
+
+  const handleFindBestScenario = async () => {
+    if (!cropId || !regionId || irrigationOptions.length === 0) return;
+    setError("");
+    setBestLoading(true);
+    setBestScenarioByProfit(null);
+    setBestScenarioByRoi(null);
+    setBestCheckCount(0);
+
+    try {
+      const baseline = {
+        landSize: 1,
+        irrigationType: irrigationOptions[0].value,
+      };
+
+      const snapshots: BestScenarioSnapshot[] = [];
+
+      for (const irrigation of irrigationOptions) {
+        for (const landSize of LAND_SIZE_PRESETS) {
+          const response = await compareScenarios({
+            cropId,
+            regionId,
+            scenarioA: baseline,
+            scenarioB: {
+              landSize,
+              irrigationType: irrigation.value,
+            },
+          });
+
+          const data = response.data.data;
+          const s = data.scenarioB;
+          snapshots.push({
+            landSize,
+            irrigationType: s.irrigationType,
+            profit: s.profit.profitAtMSP,
+            roi: s.profit.roiAtMSP,
+            riskLevel: s.risk.riskLevel,
+            confidence: s.confidence.overall,
+          });
+        }
+      }
+
+      const bestProfit = [...snapshots].sort((a, b) => b.profit - a.profit)[0];
+      const bestRoi = [...snapshots].sort((a, b) => {
+        if (b.roi !== a.roi) return b.roi - a.roi;
+        return b.profit - a.profit;
+      })[0];
+
+      setBestScenarioByProfit(bestProfit || null);
+      setBestScenarioByRoi(bestRoi || null);
+      setBestCheckCount(snapshots.length);
+    } catch {
+      setError("Best scenario data-check fail hua. Please retry.");
+    } finally {
+      setBestLoading(false);
+    }
+  };
 
   // Auto-clear
   useEffect(() => {
@@ -244,17 +344,29 @@ const Compare: React.FC = () => {
     setRegionId("");
     setStateId("");
     setResult(null);
+    setBestScenarioByProfit(null);
+    setBestScenarioByRoi(null);
+    setBestCheckCount(0);
+    setError("");
   }, [categoryId]);
 
   useEffect(() => {
     setRegionId("");
     setStateId("");
     setResult(null);
+    setBestScenarioByProfit(null);
+    setBestScenarioByRoi(null);
+    setBestCheckCount(0);
+    setError("");
   }, [cropId]);
 
   useEffect(() => {
     setRegionId("");
     setResult(null);
+    setBestScenarioByProfit(null);
+    setBestScenarioByRoi(null);
+    setBestCheckCount(0);
+    setError("");
   }, [stateId]);
 
   if (dataLoading) {
@@ -305,6 +417,7 @@ const Compare: React.FC = () => {
             <label>1. Category</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={categoryOptions}
               placeholder="Category"
               value={
@@ -317,12 +430,16 @@ const Compare: React.FC = () => {
             <label>2. Crop</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={cropOptions}
               placeholder="Crop"
               isDisabled={!categoryId}
               isSearchable={true}
-              formatOptionLabel={(option: any) =>
-                formatCropLabel(option.cropObj)
+              formatOptionLabel={(option: any, meta: any) =>
+                formatCropLabel(
+                  option.cropObj,
+                  meta.context === "value" ? "value" : "menu",
+                )
               }
               value={cropOptions.find((o) => o.value === cropId) || null}
               onChange={(s) => setCropId(s?.value || "")}
@@ -332,6 +449,7 @@ const Compare: React.FC = () => {
             <label>3. State</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={stateOptions}
               placeholder="State"
               isDisabled={!cropId}
@@ -343,6 +461,7 @@ const Compare: React.FC = () => {
             <label>4. Region</label>
             <Select
               styles={customSelectStyles}
+              {...selectOverlayProps}
               options={regionOptions}
               placeholder="District"
               isDisabled={!stateId}
@@ -351,6 +470,17 @@ const Compare: React.FC = () => {
             />
           </div>
         </div>
+
+        {selectedCrop && selectedRegion && (
+          <div className="compare-insight-bar">
+            <span>
+              Soil fit: {getSoilSuitabilityScore(selectedCrop, selectedRegion)}
+              /100
+            </span>
+            <span>Rainfall: {selectedRegion.avgRainfallMM}mm</span>
+            <span>Irrigation availability: {selectedRegion.irrigationAvailability}</span>
+          </div>
+        )}
 
         {/* Scenarios */}
         <div className="scenario-row">
@@ -372,10 +502,15 @@ const Compare: React.FC = () => {
                 step="0.5"
               />
               <div className="land-size-presets">
-                {[1, 2, 5, 10].map((s) => (
+                {LAND_SIZE_PRESETS.map((s) => (
                   <button
                     key={s}
                     type="button"
+                    className={
+                      scenarioA.landSize === s
+                        ? "land-preset-btn active"
+                        : "land-preset-btn"
+                    }
                     onClick={() => setScenarioA((p) => ({ ...p, landSize: s }))}
                   >
                     {s}A
@@ -385,22 +520,22 @@ const Compare: React.FC = () => {
             </div>
             <div className="form-group">
               <label>Irrigation</label>
-              <select
-                className="form-control"
-                value={scenarioA.irrigationType}
-                onChange={(e) =>
+              <Select
+                styles={customSelectStyles}
+                {...selectOverlayProps}
+                options={irrigationOptions}
+                value={
+                  irrigationOptions.find(
+                    (o) => o.value === scenarioA.irrigationType,
+                  ) || null
+                }
+                onChange={(s) =>
                   setScenarioA((p) => ({
                     ...p,
-                    irrigationType: e.target.value,
+                    irrigationType: s?.value || p.irrigationType,
                   }))
                 }
-              >
-                {irrigations.map((t) => (
-                  <option key={t._id} value={t.typeName}>
-                    {t.typeName}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           </div>
 
@@ -424,10 +559,15 @@ const Compare: React.FC = () => {
                 step="0.5"
               />
               <div className="land-size-presets">
-                {[1, 2, 5, 10].map((s) => (
+                {LAND_SIZE_PRESETS.map((s) => (
                   <button
                     key={s}
                     type="button"
+                    className={
+                      scenarioB.landSize === s
+                        ? "land-preset-btn active"
+                        : "land-preset-btn"
+                    }
                     onClick={() => setScenarioB((p) => ({ ...p, landSize: s }))}
                   >
                     {s}A
@@ -437,31 +577,90 @@ const Compare: React.FC = () => {
             </div>
             <div className="form-group">
               <label>Irrigation</label>
-              <select
-                className="form-control"
-                value={scenarioB.irrigationType}
-                onChange={(e) =>
+              <Select
+                styles={customSelectStyles}
+                {...selectOverlayProps}
+                options={irrigationOptions}
+                value={
+                  irrigationOptions.find(
+                    (o) => o.value === scenarioB.irrigationType,
+                  ) || null
+                }
+                onChange={(s) =>
                   setScenarioB((p) => ({
                     ...p,
-                    irrigationType: e.target.value,
+                    irrigationType: s?.value || p.irrigationType,
                   }))
                 }
-              >
-                {irrigations.map((t) => (
-                  <option key={t._id} value={t.typeName}>
-                    {t.typeName}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           </div>
         </div>
+
+        <div className="compare-actions-row">
+          <button
+            className="btn btn-secondary"
+            onClick={handleFindBestScenario}
+            disabled={!cropId || !regionId || bestLoading}
+          >
+            {bestLoading ? "Checking best..." : "🧪 Data Check: Best Scenario"}
+          </button>
+          {isSameScenario && (
+            <span className="compare-warning">
+              Scenario A aur B same hain, meaningful difference nahi aayega.
+            </span>
+          )}
+        </div>
+
+        {bestScenarioByProfit && bestScenarioByRoi && (
+          <div className="best-scenario-panel">
+            <div className="best-scenario-block">
+              <h4>Best by Profit</h4>
+              <p>
+                {bestScenarioByProfit.landSize}A,{" "}
+                {formatIrrigationLabel(bestScenarioByProfit.irrigationType)}
+              </p>
+              <small>
+                Profit: {formatINR(bestScenarioByProfit.profit)} | ROI:{" "}
+                {bestScenarioByProfit.roi}%
+              </small>
+            </div>
+            <div className="best-scenario-block">
+              <h4>Best by ROI</h4>
+              <p>
+                {bestScenarioByRoi.landSize}A,{" "}
+                {formatIrrigationLabel(bestScenarioByRoi.irrigationType)}
+              </p>
+              <small>
+                ROI: {bestScenarioByRoi.roi}% | Profit:{" "}
+                {formatINR(bestScenarioByRoi.profit)}
+              </small>
+            </div>
+            <div className="best-scenario-cta">
+              <small>{bestCheckCount} scenarios checked</small>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  setScenarioB({
+                    landSize: bestScenarioByProfit.landSize,
+                    irrigationType: bestScenarioByProfit.irrigationType,
+                  })
+                }
+              >
+                Apply to Scenario B
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && <div className="recommendation-status error">{error}</div>}
 
         <div style={{ textAlign: "center", margin: "1.5rem 0" }}>
           <button
             className="btn btn-primary btn-lg"
             onClick={handleCompare}
-            disabled={!cropId || !regionId || loading}
+            disabled={!cropId || !regionId || loading || isSameScenario}
           >
             {loading ? "Comparing..." : "⚖️ Compare Scenarios"}
           </button>
@@ -540,8 +739,8 @@ const Compare: React.FC = () => {
                   </tr>
                   <tr>
                     <td>Irrigation</td>
-                    <td>{result.scenarioA.irrigationType}</td>
-                    <td>{result.scenarioB.irrigationType}</td>
+                    <td>{formatIrrigationLabel(result.scenarioA.irrigationType)}</td>
+                    <td>{formatIrrigationLabel(result.scenarioB.irrigationType)}</td>
                     <td>—</td>
                   </tr>
                   <tr>

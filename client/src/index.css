@@ -1118,6 +1118,59 @@ select.form-control option {
   margin-bottom: 1.5rem;
 }
 
+.crop-option-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.crop-option-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.crop-option-msp {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: #06d6a0;
+  border: 1px solid rgba(6,214,160,0.35);
+  background: rgba(6,214,160,0.1);
+  border-radius: 999px;
+  padding: 0.15rem 0.45rem;
+}
+
+.crop-select-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recommendation-meta-bar {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 1.2rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 /* Recommendations Grid */
 .recommendations-grid {
   display: grid;
@@ -1223,6 +1276,34 @@ select.form-control option {
 }
 
 .rec-suitability-bar { margin-top: 0.5rem; }
+.rec-score-line {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.82rem;
+  color: #9be7cf;
+  font-weight: 600;
+}
+
+.rec-highlights {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.recommendation-status {
+  text-align: center;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  background: var(--bg-card);
+}
+
+.recommendation-status.error {
+  border-color: rgba(239, 71, 111, 0.4);
+  color: #ff8fa8;
+  background: rgba(239, 71, 111, 0.08);
+}
 
 .rec-suit-track {
   height: 6px;
@@ -1279,6 +1360,94 @@ select.form-control option {
   font-weight: 800;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+
+.compare-insight-bar {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: -0.25rem 0 1.2rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.land-size-presets {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.land-preset-btn {
+  border: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: 0.22rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.land-preset-btn.active {
+  border-color: rgba(6,214,160,0.5);
+  color: #06d6a0;
+  background: rgba(6,214,160,0.12);
+}
+
+.compare-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: 0.2rem 0 1rem;
+}
+
+.compare-warning {
+  color: #ffd166;
+  font-size: 0.86rem;
+}
+
+.best-scenario-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid rgba(6,214,160,0.3);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, rgba(6,214,160,0.08) 0%, rgba(17,138,178,0.08) 100%);
+  margin-bottom: 1rem;
+}
+
+.best-scenario-block h4 {
+  margin-bottom: 0.25rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.best-scenario-block p {
+  margin-bottom: 0.15rem;
+  font-weight: 700;
+}
+
+.best-scenario-block small {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.best-scenario-cta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.best-scenario-cta small {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
 }
 
 .compare-results { margin-top: 1.5rem; }
@@ -1390,6 +1559,8 @@ select.form-control option {
   .conf-label { min-width: 100px; }
   .scenario-row { flex-direction: column; }
   .scenario-vs { width: auto; padding: 0.5rem 0; }
+  .best-scenario-panel { grid-template-columns: 1fr; }
+  .best-scenario-cta { align-items: flex-start; }
   .tools-controls { flex-direction: column; align-items: stretch; }
   .recommendations-grid { grid-template-columns: 1fr; }
 

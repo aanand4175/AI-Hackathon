@@ -211,4 +211,6 @@ export interface CropRecommendation {
   confidence: number;
   suitabilityScore: number;
   marketDemand: string;
+  recommendationScore?: number;
+  matchHighlights?: string[];
 }
