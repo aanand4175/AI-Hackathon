@@ -2,7 +2,13 @@ import { useState, useEffect, ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Select from "react-select";
-import { fetchCrops, fetchRegions, submitEstimate } from "../services/api";
+import {
+  fetchCrops,
+  fetchRegions,
+  submitEstimate,
+  fetchMasterCategories,
+  fetchMasterCosts,
+} from "../services/api";
 import type { Crop, Region, FormData } from "../types";
 
 interface IrrigationOption {
@@ -10,15 +16,7 @@ interface IrrigationOption {
   label: string;
 }
 
-const IRRIGATION_TYPES: IrrigationOption[] = [
-  { value: "canal", label: "Canal Irrigation" },
-  { value: "tubewell", label: "Tubewell" },
-  { value: "borewell", label: "Borewell" },
-  { value: "drip", label: "Drip Irrigation" },
-  { value: "sprinkler", label: "Sprinkler" },
-  { value: "rainfed", label: "Rainfed (No Irrigation)" },
-  { value: "flood", label: "Flood Irrigation" },
-];
+// Irrigation types will be dynamically loaded from Master Data API
 
 const PRICE_SOURCES = [
   { value: "msp", label: "MSP (Govt)" },
@@ -91,11 +89,28 @@ const formatCropLabel = (crop: Crop) => (
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
+      width: "100%",
     }}
   >
-    <span>
-      {CROP_ICONS[crop.name] || "🌱"} <strong>{crop.name}</strong>
-    </span>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      {crop.imageUrl ? (
+        <img
+          src={crop.imageUrl}
+          alt={crop.name}
+          style={{
+            width: "30px",
+            height: "30px",
+            borderRadius: "4px",
+            objectFit: "cover",
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: "1.5rem" }}>
+          {CROP_ICONS[crop.name] || "🌱"}
+        </span>
+      )}
+      <strong style={{ marginLeft: "4px" }}>{crop.name}</strong>
+    </div>
     <span
       style={{
         background: "rgba(6, 214, 160, 0.1)",
@@ -130,7 +145,7 @@ const Estimator: React.FC = () => {
     cropId: "",
     regionId: "",
     landSize: 2,
-    irrigationType: "tubewell",
+    irrigationType: "",
     priceSource: "market",
     costs: {
       seeds: 0,
@@ -142,16 +157,48 @@ const Estimator: React.FC = () => {
       misc: 0,
     },
   });
+  const [categories, setCategories] = useState<any[]>([]);
+  const [costParams, setCostParams] = useState<any[]>([]);
+  const [irrigations, setIrrigations] = useState<any[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [cropsRes, regionsRes] = await Promise.all([
-          fetchCrops(),
-          fetchRegions(),
-        ]);
+        const [cropsRes, regionsRes, irrigationsRes, categoriesRes, costsRes] =
+          await Promise.all([
+            fetchCrops(),
+            fetchRegions(),
+            fetch("http://localhost:5001/api/master/irrigations").then((res) =>
+              res.json(),
+            ),
+            fetchMasterCategories(),
+            fetchMasterCosts(),
+          ]);
+
         setCrops(cropsRes.data.data || []);
         setRegions(regionsRes.data.data || []);
+
+        const activeCategories = (categoriesRes.data.data || []).filter(
+          (c: any) => c.active,
+        );
+        setCategories(activeCategories);
+
+        const activeCosts = (costsRes.data.data || []).filter(
+          (c: any) => c.active,
+        );
+        setCostParams(activeCosts);
+
+        const activeIrrigations = (irrigationsRes?.data || []).filter(
+          (i: any) => i.active,
+        );
+        setIrrigations(activeIrrigations);
+
+        if (activeIrrigations.length > 0 && !formData.irrigationType) {
+          setFormData((prev) => ({
+            ...prev,
+            irrigationType: activeIrrigations[0].typeName,
+          }));
+        }
       } catch {
         setError("Failed to load data. Please ensure the server is running.");
       } finally {
@@ -182,12 +229,9 @@ const Estimator: React.FC = () => {
   // --- Filtering Logic for 4 Dropdowns ---
 
   // 1. Categories
-  const uniqueCategories = Array.from(
-    new Set(crops.map((c) => c.category)),
-  ).sort();
-  const categoryOptions = uniqueCategories.map((cat) => ({
-    value: cat,
-    label: cat,
+  const categoryOptions = categories.map((cat) => ({
+    value: cat.name,
+    label: cat.name,
   }));
 
   // 2. Crops (Filtered by Category)
@@ -555,9 +599,9 @@ const Estimator: React.FC = () => {
                 value={formData.irrigationType}
                 onChange={handleChange}
               >
-                {IRRIGATION_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
+                {irrigations.map((type) => (
+                  <option key={type._id} value={type.typeName}>
+                    {type.typeName} (₹{type.costPerAcre}/Acre)
                   </option>
                 ))}
               </select>
@@ -606,32 +650,48 @@ const Estimator: React.FC = () => {
           </p>
 
           <div className="cost-inputs-grid">
-            {[
-              "seeds",
-              "fertilizer",
-              "pesticide",
-              "labor",
-              "irrigation",
-              "transport",
-              "misc",
-            ].map((field) => (
-              <div className="form-group" key={field}>
+            {costParams.map((param) => (
+              <div className="form-group" key={param._id}>
                 <label>
-                  {field.charAt(0).toUpperCase() + field.slice(1)} (₹)
+                  {param.name} ({param.defaultUnit || "₹/Acre"})
                 </label>
                 <input
                   type="number"
-                  name={field}
+                  name={param.name.toLowerCase().replace(/\s+/g, "")}
                   className="form-control"
                   placeholder="0"
                   value={
-                    (formData.costs as Record<string, number>)[field] || ""
+                    formData.costs[
+                      param.name.toLowerCase().replace(/\s+/g, "")
+                    ] || ""
                   }
-                  onChange={handleCostChange}
+                  onChange={(e) => {
+                    const { value } = e.target;
+                    setFormData((prev) => ({
+                      ...prev,
+                      costs: {
+                        ...prev.costs,
+                        [param.name.toLowerCase().replace(/\s+/g, "")]:
+                          Number(value) || 0,
+                      },
+                    }));
+                  }}
                   min="0"
                 />
               </div>
             ))}
+            {costParams.length === 0 && (
+              <p
+                style={{
+                  gridColumn: "1 / -1",
+                  textAlign: "center",
+                  padding: "2rem",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                No custom cost parameters defined. Using standard defaults.
+              </p>
+            )}
           </div>
 
           <div className="form-actions" style={{ marginTop: "2rem" }}>

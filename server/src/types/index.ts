@@ -35,15 +35,8 @@ export interface ICropRotation {
 
 export interface ICrop extends Document {
   name: string;
-  category:
-    | "Cereal"
-    | "Cash Crop"
-    | "Oilseed"
-    | "Pulse"
-    | "Millet"
-    | "Horticulture"
-    | "Spice"
-    | "Herbal";
+  imageUrl?: string;
+  category: string;
   baseYieldPerAcre: number;
   growthDurationDays: number;
   waterRequirement: "Low" | "Medium" | "High";

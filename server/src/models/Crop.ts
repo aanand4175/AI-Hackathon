@@ -8,18 +8,12 @@ const cropSchema = new Schema<ICrop>(
       required: true,
       unique: true,
     },
+    imageUrl: {
+      type: String,
+      default: "",
+    },
     category: {
       type: String,
-      enum: [
-        "Cereal",
-        "Cash Crop",
-        "Oilseed",
-        "Pulse",
-        "Millet",
-        "Horticulture",
-        "Spice",
-        "Herbal",
-      ],
       required: true,
     },
     baseYieldPerAcre: {

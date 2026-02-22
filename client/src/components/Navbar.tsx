@@ -94,6 +94,25 @@ const Navbar: React.FC = () => {
               Heatmap
             </Link>
           </li>
+          <li>
+            <button
+              className="admin-nav-link"
+              onClick={(e) => {
+                e.preventDefault();
+                window.open("/admin/login", "_blank", "noopener,noreferrer");
+                setMenuOpen(false);
+              }}
+              style={{
+                color: "var(--primary-color)",
+                fontWeight: "bold",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              🛡️ Admin
+            </button>
+          </li>
         </ul>
       </div>
     </nav>

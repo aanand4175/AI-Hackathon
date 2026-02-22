@@ -132,6 +132,9 @@ const Results: React.FC = () => {
     doc.setTextColor(100);
     doc.text(`Generated: ${new Date().toLocaleDateString("en-IN")}`, 14, 30);
 
+    const pdfFormatINR = (n: number) =>
+      "Rs. " + Math.round(n).toLocaleString("en-IN");
+
     doc.setFontSize(12);
     doc.setTextColor(0);
     doc.text("Summary", 14, 42);
@@ -155,11 +158,11 @@ const Results: React.FC = () => {
       head: [["Metric", "Value"]],
       body: [
         ["Total Yield", `${yld.totalYield} quintals`],
-        ["Revenue (MSP)", formatINR(profit.revenueAtMSP)],
-        ["Revenue (Market)", formatINR(profit.revenueAtMarket)],
-        ["Total Cost", formatINR(profit.totalCost)],
-        ["Profit (MSP)", formatINR(profit.profitAtMSP)],
-        ["Profit (Market)", formatINR(profit.profitAtMarket)],
+        ["Revenue (MSP)", pdfFormatINR(profit.revenueAtMSP)],
+        ["Revenue (Market)", pdfFormatINR(profit.revenueAtMarket)],
+        ["Total Cost", pdfFormatINR(profit.totalCost)],
+        ["Profit (MSP)", pdfFormatINR(profit.profitAtMSP)],
+        ["Profit (Market)", pdfFormatINR(profit.profitAtMarket)],
         ["ROI (MSP)", `${profit.roiAtMSP}%`],
         ["ROI (Market)", `${profit.roiAtMarket}%`],
       ],
@@ -193,7 +196,7 @@ const Results: React.FC = () => {
     doc.text("Cost Breakdown", 14, 22);
     autoTable(doc, {
       startY: 26,
-      head: [["Item", "Per Acre (₹)", "Total (₹)"]],
+      head: [["Item", "Per Acre (Rs.)", "Total (Rs.)"]],
       body: costBreakdownData.map((c) => [
         c.name,
         c.perAcre.toLocaleString(),
@@ -212,8 +215,8 @@ const Results: React.FC = () => {
       head: [["Scenario", "Original Profit", "New Profit", "Impact"]],
       body: sensitivity.map((s) => [
         s.label,
-        formatINR(s.originalProfit),
-        formatINR(s.newProfit),
+        pdfFormatINR(s.originalProfit),
+        pdfFormatINR(s.newProfit),
         `${s.impactPercent > 0 ? "+" : ""}${s.impactPercent}%`,
       ]),
       theme: "striped",
@@ -244,7 +247,8 @@ const Results: React.FC = () => {
       (doc as any).lastAutoTable.finalY + 20,
     );
 
-    doc.save(`${summary.crop.replace(/[^a-zA-Z]/g, "_")}_Report.pdf`);
+    const fileName = `${summary.crop.replace(/[^a-zA-Z0-9]/g, "_")}_Report.pdf`;
+    doc.save(fileName);
   };
 
   return (
@@ -353,9 +357,7 @@ const Results: React.FC = () => {
               </span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">
-                Net Profit (MSP) <br /> (per cycle)
-              </span>
+              <span className="stat-label">Net Profit (MSP) (per cycle)</span>
               <span
                 className={`stat-value ${profit.profitAtMSP >= 0 ? "green" : "red"}`}
               >
@@ -364,7 +366,7 @@ const Results: React.FC = () => {
             </div>
             <div className="stat-item">
               <span className="stat-label">
-                Net Profit (Market) <br /> (per cycle)
+                Net Profit (Market) (per cycle)
               </span>
               <span
                 className={`stat-value ${profit.profitAtMarket >= 0 ? "green" : "red"}`}
@@ -400,9 +402,7 @@ const Results: React.FC = () => {
               <span className="stat-value">{yld.adjustedYieldPerAcre} qtl</span>
             </div>
             <div className="stat-item">
-              <span className="stat-label">
-                Total Yield <br /> (per cycle)
-              </span>
+              <span className="stat-label">Total Yield (per cycle)</span>
               <span className="stat-value green">
                 {yld.totalYield} quintals
               </span>

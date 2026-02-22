@@ -6,6 +6,7 @@ export interface Crop {
   _id: string;
   name: string;
   category: string;
+  imageUrl?: string;
   baseYieldPerAcre: number;
   mspPerQuintal: number;
   marketPricePerQuintal: number;
@@ -31,15 +32,7 @@ export interface FormData {
   landSize: number;
   irrigationType: string;
   priceSource: string;
-  costs: {
-    seeds: number;
-    fertilizer: number;
-    pesticide: number;
-    labor: number;
-    irrigation: number;
-    transport: number;
-    misc: number;
-  };
+  costs: Record<string, number>;
 }
 
 // --- Enhanced Result Types ---

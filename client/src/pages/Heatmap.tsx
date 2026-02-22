@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
-import { fetchCrops, fetchRegions, fetchHeatmap } from "../services/api";
+import {
+  fetchCrops,
+  fetchRegions,
+  fetchHeatmap,
+  fetchMasterCategories,
+  fetchMasterIrrigations,
+} from "../services/api";
 import type { Crop, Region } from "../types";
 import {
   AreaChart,
@@ -14,6 +20,69 @@ import {
   Bar,
   Cell,
 } from "recharts";
+
+const CROP_ICONS: Record<string, string> = {
+  Wheat: "🌾",
+  Rice: "🍚",
+  Paddy: "🌾",
+  Corn: "🌽",
+  Maize: "🌽",
+  Cotton: "☁️",
+  Sugarcane: "🎋",
+  Soybean: "🌱",
+  Potato: "🥔",
+  Tomato: "🍅",
+  Onion: "🧅",
+  "Green Gram": "🌿",
+  "Black Gram": "🌿",
+  Mustard: "🌼",
+  Groundnut: "🥜",
+  Jute: "📜",
+  Banana: "🍌",
+  Mango: "🥭",
+};
+
+const formatCropLabel = (crop: Crop) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+    }}
+  >
+    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      {crop.imageUrl ? (
+        <img
+          src={crop.imageUrl}
+          alt={crop.name}
+          style={{
+            width: "30px",
+            height: "30px",
+            borderRadius: "4px",
+            objectFit: "cover",
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: "1.5rem" }}>
+          {CROP_ICONS[crop.name] || "🌱"}
+        </span>
+      )}
+      <strong style={{ marginLeft: "4px" }}>{crop.name}</strong>
+    </div>
+    <span
+      style={{
+        background: "rgba(6, 214, 160, 0.1)",
+        color: "#06d6a0",
+        padding: "2px 8px",
+        borderRadius: "12px",
+        fontSize: "0.8rem",
+      }}
+    >
+      MSP: ₹{crop.mspPerQuintal}
+    </span>
+  </div>
+);
 
 interface HeatmapPoint {
   landSize: number;
@@ -72,7 +141,9 @@ const Heatmap: React.FC = () => {
   const [cropId, setCropId] = useState("");
   const [stateId, setStateId] = useState("");
   const [regionId, setRegionId] = useState("");
-  const [irrigationType, setIrrigationType] = useState("drip");
+  const [irrigationType, setIrrigationType] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
+  const [irrigations, setIrrigations] = useState<any[]>([]);
   const [data, setData] = useState<HeatmapPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
@@ -80,9 +151,23 @@ const Heatmap: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [c, r] = await Promise.all([fetchCrops(), fetchRegions()]);
+        const [c, r, catRes, irrRes] = await Promise.all([
+          fetchCrops(),
+          fetchRegions(),
+          fetchMasterCategories(),
+          fetchMasterIrrigations(),
+        ]);
         setCrops(c.data.data || []);
         setRegions(r.data.data || []);
+        setCategories((catRes.data.data || []).filter((i: any) => i.active));
+
+        const activeIrrs = (irrRes.data.data || []).filter(
+          (i: any) => i.active,
+        );
+        setIrrigations(activeIrrs);
+        if (activeIrrs.length > 0 && !irrigationType) {
+          setIrrigationType(activeIrrs[0].typeName);
+        }
       } catch {
         /* ignore */
       } finally {
@@ -108,12 +193,9 @@ const Heatmap: React.FC = () => {
   const formatINR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
   // 1. Categories
-  const uniqueCategories = Array.from(
-    new Set(crops.map((c) => c.category)),
-  ).sort();
-  const categoryOptions = uniqueCategories.map((cat) => ({
-    value: cat,
-    label: cat,
+  const categoryOptions = categories.map((cat) => ({
+    value: cat.name,
+    label: cat.name,
   }));
 
   // 2. Crops
@@ -123,6 +205,7 @@ const Heatmap: React.FC = () => {
   const cropOptions = filteredCrops.map((crop) => ({
     value: crop._id,
     label: crop.name,
+    cropObj: crop,
   }));
 
   const selectedCrop = crops.find((c) => c._id === cropId);
@@ -217,6 +300,10 @@ const Heatmap: React.FC = () => {
               options={cropOptions}
               placeholder="Crop"
               isDisabled={!categoryId}
+              isSearchable={true}
+              formatOptionLabel={(option: any) =>
+                formatCropLabel(option.cropObj)
+              }
               value={cropOptions.find((o) => o.value === cropId) || null}
               onChange={(s) => setCropId(s?.value || "")}
             />
@@ -251,10 +338,11 @@ const Heatmap: React.FC = () => {
               value={irrigationType}
               onChange={(e) => setIrrigationType(e.target.value)}
             >
-              <option value="drip">Drip</option>
-              <option value="sprinkler">Sprinkler</option>
-              <option value="canal">Canal</option>
-              <option value="rainfed">Rainfed</option>
+              {irrigations.map((t) => (
+                <option key={t._id} value={t.typeName}>
+                  {t.typeName}
+                </option>
+              ))}
             </select>
           </div>
           <button

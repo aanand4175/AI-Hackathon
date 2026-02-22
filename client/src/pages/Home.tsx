@@ -36,6 +36,19 @@ const Home: React.FC = () => {
           <a href="#features" className="btn btn-secondary btn-lg">
             Learn More
           </a>
+          <Link
+            to="/admin/login"
+            className="btn btn-secondary btn-lg"
+            style={{
+              borderColor: "var(--primary-color)",
+              color: "var(--primary-color)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            🛡️ Admin Login
+          </Link>
         </div>
       </section>
 

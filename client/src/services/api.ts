@@ -56,4 +56,10 @@ export const fetchSensitivity = (data: {
   costVariation: number;
 }) => API.post("/estimate/sensitivity", data);
 
+// Master Data
+export const fetchMasterCategories = () => API.get("/master/categories");
+export const fetchMasterStates = () => API.get("/master/states");
+export const fetchMasterIrrigations = () => API.get("/master/irrigations");
+export const fetchMasterCosts = () => API.get("/master/costs");
+
 export default API;

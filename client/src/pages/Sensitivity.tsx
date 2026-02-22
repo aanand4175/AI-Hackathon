@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
-import { fetchCrops, fetchRegions, fetchSensitivity } from "../services/api";
+import {
+  fetchCrops,
+  fetchRegions,
+  fetchSensitivity,
+  fetchMasterCategories,
+  fetchMasterIrrigations,
+} from "../services/api";
 import type { Crop, Region } from "../types";
 import {
   BarChart,
@@ -13,15 +19,70 @@ import {
   Legend,
 } from "recharts";
 
-const IRRIGATION_TYPES = [
-  { value: "canal", label: "Canal" },
-  { value: "tubewell", label: "Tubewell" },
-  { value: "borewell", label: "Borewell" },
-  { value: "drip", label: "Drip" },
-  { value: "sprinkler", label: "Sprinkler" },
-  { value: "rainfed", label: "Rainfed" },
-  { value: "flood", label: "Flood" },
-];
+const CROP_ICONS: Record<string, string> = {
+  Wheat: "🌾",
+  Rice: "🍚",
+  Paddy: "🌾",
+  Corn: "🌽",
+  Maize: "🌽",
+  Cotton: "☁️",
+  Sugarcane: "🎋",
+  Soybean: "🌱",
+  Potato: "🥔",
+  Tomato: "🍅",
+  Onion: "🧅",
+  "Green Gram": "🌿",
+  "Black Gram": "🌿",
+  Mustard: "🌼",
+  Groundnut: "🥜",
+  Jute: "📜",
+  Banana: "🍌",
+  Mango: "🥭",
+};
+
+const formatCropLabel = (crop: Crop) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+    }}
+  >
+    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      {crop.imageUrl ? (
+        <img
+          src={crop.imageUrl}
+          alt={crop.name}
+          style={{
+            width: "30px",
+            height: "30px",
+            borderRadius: "4px",
+            objectFit: "cover",
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: "1.5rem" }}>
+          {CROP_ICONS[crop.name] || "🌱"}
+        </span>
+      )}
+      <strong style={{ marginLeft: "4px" }}>{crop.name}</strong>
+    </div>
+    <span
+      style={{
+        background: "rgba(6, 214, 160, 0.1)",
+        color: "#06d6a0",
+        padding: "2px 8px",
+        borderRadius: "12px",
+        fontSize: "0.8rem",
+      }}
+    >
+      MSP: ₹{crop.mspPerQuintal}
+    </span>
+  </div>
+);
+
+// Irrigation types will be dynamically loaded from Master Data API
 
 const customSelectStyles = {
   control: (base: any, state: any) => ({
@@ -56,6 +117,8 @@ const customSelectStyles = {
 const Sensitivity: React.FC = () => {
   const [crops, setCrops] = useState<Crop[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [irrigations, setIrrigations] = useState<any[]>([]);
 
   const [categoryId, setCategoryId] = useState("");
   const [cropId, setCropId] = useState("");
@@ -63,7 +126,7 @@ const Sensitivity: React.FC = () => {
   const [regionId, setRegionId] = useState("");
 
   const [landSize, setLandSize] = useState(2);
-  const [irrigationType, setIrrigationType] = useState("drip");
+  const [irrigationType, setIrrigationType] = useState("");
 
   // Variations (Sliders from -50 to +50)
   const [priceVariation, setPriceVariation] = useState(0);
@@ -79,9 +142,23 @@ const Sensitivity: React.FC = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [c, r] = await Promise.all([fetchCrops(), fetchRegions()]);
+        const [c, r, catRes, irrRes] = await Promise.all([
+          fetchCrops(),
+          fetchRegions(),
+          fetchMasterCategories(),
+          fetchMasterIrrigations(),
+        ]);
         setCrops(c.data.data || []);
         setRegions(r.data.data || []);
+        setCategories((catRes.data.data || []).filter((i: any) => i.active));
+
+        const activeIrrs = (irrRes.data.data || []).filter(
+          (i: any) => i.active,
+        );
+        setIrrigations(activeIrrs);
+        if (activeIrrs.length > 0 && !irrigationType) {
+          setIrrigationType(activeIrrs[0].typeName);
+        }
       } catch {
         /* ignore */
       } finally {
@@ -92,12 +169,9 @@ const Sensitivity: React.FC = () => {
   }, []);
 
   // 1. Categories
-  const uniqueCategories = Array.from(
-    new Set(crops.map((c) => c.category)),
-  ).sort();
-  const categoryOptions = uniqueCategories.map((cat) => ({
-    value: cat,
-    label: cat,
+  const categoryOptions = categories.map((cat) => ({
+    value: cat.name,
+    label: cat.name,
   }));
 
   // 2. Crops
@@ -107,6 +181,7 @@ const Sensitivity: React.FC = () => {
   const cropOptions = filteredCrops.map((crop) => ({
     value: crop._id,
     label: crop.name,
+    cropObj: crop,
   }));
 
   const selectedCrop = crops.find((c) => c._id === cropId);
@@ -297,6 +372,10 @@ const Sensitivity: React.FC = () => {
               options={cropOptions}
               placeholder="Crop"
               isDisabled={!categoryId}
+              isSearchable={true}
+              formatOptionLabel={(option: any) =>
+                formatCropLabel(option.cropObj)
+              }
               value={cropOptions.find((o) => o.value === cropId) || null}
               onChange={(s) => setCropId(s?.value || "")}
             />
@@ -345,6 +424,13 @@ const Sensitivity: React.FC = () => {
               min="0.5"
               step="0.5"
             />
+            <div className="land-size-presets">
+              {[1, 2, 5, 10].map((s) => (
+                <button key={s} type="button" onClick={() => setLandSize(s)}>
+                  {s}A
+                </button>
+              ))}
+            </div>
           </div>
           <div className="form-group" style={{ flex: 1, minWidth: "150px" }}>
             <label>Irrigation</label>
@@ -354,9 +440,9 @@ const Sensitivity: React.FC = () => {
               value={irrigationType}
               onChange={(e) => setIrrigationType(e.target.value)}
             >
-              {IRRIGATION_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
+              {irrigations.map((t) => (
+                <option key={t._id} value={t.typeName}>
+                  {t.typeName}
                 </option>
               ))}
             </select>
