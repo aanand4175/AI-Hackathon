@@ -23,13 +23,13 @@ const Navbar: React.FC = () => {
         </Link>
 
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <button
+          {/* <button
             onClick={toggleLanguage}
             className="lang-toggle-btn"
             aria-label="Toggle language"
           >
             {i18n.language === "en" ? "हिंदी" : "EN"}
-          </button>
+          </button> */}
           <button
             className="navbar-toggle"
             onClick={() => setMenuOpen(!menuOpen)}
