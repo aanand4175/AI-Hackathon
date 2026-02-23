@@ -24,6 +24,77 @@ export const fetchRegions = () =>
 export const submitEstimate = (data: FormData) =>
   API.post<{ success: boolean; data: EstimateResult }>("/estimate", data);
 
+// AI Insights
+export const generateAIInsights = (data: {
+  cropName: string;
+  regionName: string;
+  totalCost: number;
+  netProfit: number;
+  profitMargin: number;
+  risks: {
+    weather: number;
+    water: number;
+    price: number;
+    pest: number;
+    infrastructure: number;
+  };
+}) =>
+  API.post<{ success: boolean; data: { insights: string } }>(
+    "/ai/insights",
+    data,
+  );
+
+export const generateRecommendationInsights = (data: {
+  region: Region;
+  topCrops: CropRecommendation[];
+}) =>
+  API.post<{ success: boolean; data: { insights: string } }>(
+    "/ai/recommendations",
+    data,
+  );
+
+export const generateComparisonInsights = (data: {
+  cropName: string;
+  regionName: string;
+  scenarioA: any;
+  scenarioB: any;
+  winner: string;
+  profitDifference: number;
+}) =>
+  API.post<{ success: boolean; data: { insights: string } }>(
+    "/ai/compare",
+    data,
+  );
+
+export const generateHeatmapInsights = (data: {
+  cropName: string;
+  regionName: string;
+  data: any[];
+}) =>
+  API.post<{ success: boolean; data: { insights: string } }>(
+    "/ai/heatmap",
+    data,
+  );
+
+export const generateSensitivityInsights = (data: {
+  cropName: string;
+  regionName: string;
+  variations: { price: number; yield: number; cost: number };
+  baseProfit: number;
+  adjustedProfit: number;
+  baseRoi: number;
+  adjustedRoi: number;
+}) =>
+  API.post<{ success: boolean; data: { insights: string } }>(
+    "/ai/sensitivity",
+    data,
+  );
+
+export const chatWithKrishiMitra = (data: {
+  history: { role: string; parts: [{ text: string }] }[];
+  message: string;
+}) => API.post<{ success: boolean; data: { reply: string } }>("/ai/chat", data);
+
 // Recommendations
 export const fetchRecommendations = (regionId: string) =>
   API.get<{ success: boolean; data: CropRecommendation[] }>(

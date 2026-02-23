@@ -6,9 +6,11 @@ import {
   fetchSensitivity,
   fetchMasterCategories,
   fetchMasterIrrigations,
+  generateSensitivityInsights,
 } from "../services/api";
 import type { Crop, Region } from "../types";
 import { getSoilSuitabilityScore } from "../utils/soil";
+import AIInsightsCard from "../components/AIInsightsCard";
 import {
   BarChart,
   Bar,
@@ -128,13 +130,20 @@ const Sensitivity: React.FC = () => {
   const [adjustedResult, setAdjustedResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+
+  const [aiInsights, setAiInsights] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
   const selectOverlayProps = {
     menuPortalTarget: document.body,
     menuPosition: "fixed" as const,
   };
 
   const normalizeIrrigationType = (raw: string): string => {
-    const cleaned = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    const cleaned = raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
     if (cleaned.includes("tubewell")) return "tubewell";
     if (cleaned.includes("borewell")) return "borewell";
     if (cleaned.includes("sprinkler")) return "sprinkler";
@@ -170,7 +179,9 @@ const Sensitivity: React.FC = () => {
           .filter(
             (irr: any, idx: number, arr: any[]) =>
               idx ===
-              arr.findIndex((x: any) => x.normalizedType === irr.normalizedType),
+              arr.findIndex(
+                (x: any) => x.normalizedType === irr.normalizedType,
+              ),
           );
         setIrrigations(normalizedIrrs);
         if (activeIrrs.length > 0 && !irrigationType) {
@@ -203,12 +214,12 @@ const Sensitivity: React.FC = () => {
 
   const selectedCrop = crops.find((c) => c._id === cropId);
   const selectedRegion = regions.find((r) => r._id === regionId);
-  const farmingTypeOptionsForRegion =
-    selectedRegion?.supportedFarmingTypes?.length
-      ? FARMING_TYPE_OPTIONS.filter((opt) =>
-          selectedRegion.supportedFarmingTypes?.includes(opt.value),
-        )
-      : FARMING_TYPE_OPTIONS;
+  const farmingTypeOptionsForRegion = selectedRegion?.supportedFarmingTypes
+    ?.length
+    ? FARMING_TYPE_OPTIONS.filter((opt) =>
+        selectedRegion.supportedFarmingTypes?.includes(opt.value),
+      )
+    : FARMING_TYPE_OPTIONS;
 
   useEffect(() => {
     if (!farmingTypeOptionsForRegion.find((ft) => ft.value === farmingType)) {
@@ -258,12 +269,14 @@ const Sensitivity: React.FC = () => {
     setStateId("");
     setBaseResult(null);
     setAdjustedResult(null);
+    setAiInsights("");
   }, [cropId]);
 
   useEffect(() => {
     setRegionId("");
     setBaseResult(null);
     setAdjustedResult(null);
+    setAiInsights("");
   }, [stateId]);
 
   // Fetch Base Sensitivity (0 variations) when parameters change
@@ -338,6 +351,34 @@ const Sensitivity: React.FC = () => {
     farmingType,
     baseResult,
   ]);
+
+  const handleGetAiAnalysis = async () => {
+    if (!baseResult || !adjustedResult || !cropId || !regionId) return;
+    setAiLoading(true);
+    try {
+      const sCrop = crops.find((c) => c._id === cropId);
+      const sRegion = regions.find((r) => r._id === regionId);
+
+      const res = await generateSensitivityInsights({
+        cropName: sCrop?.name || "Crop",
+        regionName: sRegion?.district || "Region",
+        variations: {
+          price: priceVariation,
+          yield: yieldVariation,
+          cost: costVariation,
+        },
+        baseProfit: baseResult.profit.profitAtMSP,
+        adjustedProfit: adjustedResult.profit.profitAtMSP,
+        baseRoi: baseResult.profit.roiAtMSP,
+        adjustedRoi: adjustedResult.profit.roiAtMSP,
+      });
+      setAiInsights(res.data.data.insights);
+    } catch (err) {
+      console.error("AI Insights fail:", err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const formatINR = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
@@ -474,7 +515,11 @@ const Sensitivity: React.FC = () => {
                 <button
                   key={s}
                   type="button"
-                  className={landSize === s ? "land-preset-btn active" : "land-preset-btn"}
+                  className={
+                    landSize === s
+                      ? "land-preset-btn active"
+                      : "land-preset-btn"
+                  }
                   onClick={() => setLandSize(s)}
                 >
                   {s}A
@@ -862,6 +907,55 @@ const Sensitivity: React.FC = () => {
                     />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              <div
+                style={{
+                  background: "var(--bg-card)",
+                  padding: "1.5rem",
+                  borderRadius: "16px",
+                  marginTop: "2rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "1rem",
+                    borderBottom: "1px solid rgba(255,255,255,0.1)",
+                    paddingBottom: "0.5rem",
+                  }}
+                >
+                  <h3 style={{ margin: 0 }}>🧠 AI Impact Analysis</h3>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleGetAiAnalysis}
+                    disabled={
+                      aiLoading ||
+                      (priceVariation === 0 &&
+                        yieldVariation === 0 &&
+                        costVariation === 0)
+                    }
+                    style={{ padding: "0.5rem 1rem", fontSize: "0.9rem" }}
+                  >
+                    {aiLoading ? "Analyzing..." : "Get AI Analysis"}
+                  </button>
+                </div>
+
+                {aiLoading || aiInsights ? (
+                  <AIInsightsCard insights={aiInsights} isLoading={aiLoading} />
+                ) : (
+                  <p
+                    style={{
+                      color: "#aaa",
+                      fontSize: "0.9rem",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Adjust the sliders and click "Get AI Analysis" to understand
+                    your risk exposure.
+                  </p>
+                )}
               </div>
             </div>
           </div>

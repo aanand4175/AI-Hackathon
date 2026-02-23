@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
-import { fetchRegions, fetchRecommendations } from "../services/api";
+import {
+  fetchRegions,
+  fetchRecommendations,
+  generateRecommendationInsights,
+} from "../services/api";
 import type { Region, CropRecommendation } from "../types";
+import AIInsightsCard from "../components/AIInsightsCard";
 
 const customSelectStyles = {
   control: (base: any, state: any) => ({
@@ -56,6 +61,8 @@ const Recommendations: React.FC = () => {
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [hasFetched, setHasFetched] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   const uniqueStates = Array.from(new Set(regions.map((r) => r.state))).sort();
   const stateOptions = uniqueStates.map((st) => ({ value: st, label: st }));
@@ -95,15 +102,40 @@ const Recommendations: React.FC = () => {
     if (!regionId) return;
     setLoading(true);
     setError("");
+    setAiInsights("");
     try {
       const res = await fetchRecommendations(regionId);
-      setRecommendations(res.data.data || []);
+      const recs = res.data.data || [];
+      setRecommendations(recs);
       setHasFetched(true);
+
+      const rObj = regions.find((r) => r._id === regionId);
+      if (recs.length > 0 && rObj) {
+        fetchAiInsights(rObj, recs);
+      }
     } catch {
       setRecommendations([]);
       setError("Recommendations fetch nahi ho paayi. Please retry.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAiInsights = async (
+    regionObj: Region,
+    recs: CropRecommendation[],
+  ) => {
+    setAiLoading(true);
+    try {
+      const { data } = await generateRecommendationInsights({
+        region: regionObj,
+        topCrops: recs.slice(0, 5),
+      });
+      setAiInsights(data.data.insights);
+    } catch (err) {
+      console.error("AI check fail:", err);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -205,6 +237,12 @@ const Recommendations: React.FC = () => {
         )}
 
         {/* Results */}
+        {(aiLoading || aiInsights) && (
+          <div style={{ marginBottom: "2rem" }}>
+            <AIInsightsCard insights={aiInsights} isLoading={aiLoading} />
+          </div>
+        )}
+
         {recommendations.length > 0 && (
           <div className="recommendations-grid">
             {recommendations.map((rec, index) => (
@@ -310,21 +348,19 @@ const Recommendations: React.FC = () => {
           </div>
         )}
 
-        {error && (
-          <div className="recommendation-status error">{error}</div>
-        )}
+        {error && <div className="recommendation-status error">{error}</div>}
 
         {recommendations.length === 0 &&
           selectedRegion &&
           !loading &&
           hasFetched &&
           !error && (
-          <div className="recommendation-status">
-            <p>
-              Is region ke liye enough matching crops nahi mile. Dusra district
-              try karein.
-            </p>
-          </div>
+            <div className="recommendation-status">
+              <p>
+                Is region ke liye enough matching crops nahi mile. Dusra
+                district try karein.
+              </p>
+            </div>
           )}
       </div>
     </main>

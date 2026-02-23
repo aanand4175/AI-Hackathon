@@ -26,6 +26,7 @@ import {
 import jsPDF from "jspdf";
 // @ts-ignore
 import autoTable from "jspdf-autotable";
+import AIInsightsCard from "../components/AIInsightsCard";
 
 const COLORS = [
   "#06d6a0",
@@ -332,6 +333,38 @@ const Results: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* AI Insights Card */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <AIInsightsCard
+            estimationData={{
+              cropName: summary.crop,
+              regionName: summary.region,
+              totalCost: profit.totalCost,
+              netProfit: profit.profitAtMarket, // Default to market profit for advice
+              profitMargin: profit.roiAtMarket,
+              risks: {
+                weather:
+                  risk.riskCategories.find((r) => r.category === "Weather Risk")
+                    ?.score || 0,
+                water:
+                  risk.riskCategories.find((r) => r.category === "Water Risk")
+                    ?.score || 0,
+                price:
+                  risk.riskCategories.find((r) => r.category === "Price Risk")
+                    ?.score || 0,
+                pest:
+                  risk.riskCategories.find(
+                    (r) => r.category === "Pest/Disease Risk",
+                  )?.score || 0,
+                infrastructure:
+                  risk.riskCategories.find(
+                    (r) => r.category === "Infrastructure Risk",
+                  )?.score || 0,
+              },
+            }}
+          />
         </div>
 
         {/* Profit Summary */}

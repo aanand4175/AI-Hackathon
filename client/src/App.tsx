@@ -25,6 +25,8 @@ import CostParameterManager from "./pages/admin/CostParameterManager";
 import RegionsManager from "./pages/admin/RegionsManager";
 import RegionForm from "./pages/admin/RegionForm";
 
+import Chatbot from "./components/Chatbot";
+
 const App: React.FC = () => {
   return (
     <Router>
@@ -62,6 +64,7 @@ const App: React.FC = () => {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Chatbot />
     </Router>
   );
 };

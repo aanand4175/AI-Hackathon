@@ -8,6 +8,7 @@ import regionRoutes from "./routes/regionRoutes";
 import estimateRoutes from "./routes/estimateRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import masterRoutes from "./routes/masterRoutes";
+import aiRoutes from "./routes/aiRoutes";
 
 // Load env vars
 dotenv.config();
@@ -27,6 +28,7 @@ app.use("/api/regions", regionRoutes);
 app.use("/api/estimate", estimateRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/master", masterRoutes);
+app.use("/api/ai", aiRoutes);
 
 // Health check
 app.get("/api/health", (_req: Request, res: Response) => {

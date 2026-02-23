@@ -6,9 +6,11 @@ import {
   fetchHeatmap,
   fetchMasterCategories,
   fetchMasterIrrigations,
+  generateHeatmapInsights,
 } from "../services/api";
 import type { Crop, Region } from "../types";
 import { getSoilSuitabilityScore } from "../utils/soil";
+import AIInsightsCard from "../components/AIInsightsCard";
 import {
   AreaChart,
   Area,
@@ -138,13 +140,19 @@ const Heatmap: React.FC = () => {
   const [data, setData] = useState<HeatmapPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [aiInsights, setAiInsights] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
   const selectOverlayProps = {
     menuPortalTarget: document.body,
     menuPosition: "fixed" as const,
   };
 
   const normalizeIrrigationType = (raw: string): string => {
-    const cleaned = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    const cleaned = raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
     if (cleaned.includes("tubewell")) return "tubewell";
     if (cleaned.includes("borewell")) return "borewell";
     if (cleaned.includes("sprinkler")) return "sprinkler";
@@ -179,7 +187,9 @@ const Heatmap: React.FC = () => {
           .filter(
             (irr: any, idx: number, arr: any[]) =>
               idx ===
-              arr.findIndex((x: any) => x.normalizedType === irr.normalizedType),
+              arr.findIndex(
+                (x: any) => x.normalizedType === irr.normalizedType,
+              ),
           );
         setIrrigations(normalizedIrrs);
         if (activeIrrs.length > 0 && !irrigationType) {
@@ -197,6 +207,7 @@ const Heatmap: React.FC = () => {
   const handleGenerate = async () => {
     if (!cropId || !regionId) return;
     setLoading(true);
+    setAiInsights("");
     try {
       const res = await fetchHeatmap({
         cropId,
@@ -204,11 +215,39 @@ const Heatmap: React.FC = () => {
         irrigationType,
         farmingType,
       });
-      setData(res.data.data || []);
+      const heatmapData = res.data.data || [];
+      setData(heatmapData);
+
+      const sCrop = crops.find((c) => c._id === cropId);
+      const sRegion = regions.find((r) => r._id === regionId);
+
+      if (heatmapData.length > 0 && sCrop && sRegion) {
+        fetchAiInsights(sCrop.name, sRegion.district, heatmapData);
+      }
     } catch {
       /* ignore */
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAiInsights = async (
+    cName: string,
+    rName: string,
+    hData: any[],
+  ) => {
+    setAiLoading(true);
+    try {
+      const { data } = await generateHeatmapInsights({
+        cropName: cName,
+        regionName: rName,
+        data: hData,
+      });
+      setAiInsights(data.data.insights);
+    } catch (err) {
+      console.error("AI Insights fail:", err);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -232,16 +271,18 @@ const Heatmap: React.FC = () => {
 
   const selectedCrop = crops.find((c) => c._id === cropId);
   const selectedRegion = regions.find((r) => r._id === regionId);
-  const farmingTypeOptionsForRegion =
-    selectedRegion?.supportedFarmingTypes?.length
-      ? FARMING_TYPE_OPTIONS.filter((opt) =>
-          selectedRegion.supportedFarmingTypes?.includes(opt.value),
-        )
-      : FARMING_TYPE_OPTIONS;
+  const farmingTypeOptionsForRegion = selectedRegion?.supportedFarmingTypes
+    ?.length
+    ? FARMING_TYPE_OPTIONS.filter((opt) =>
+        selectedRegion.supportedFarmingTypes?.includes(opt.value),
+      )
+    : FARMING_TYPE_OPTIONS;
 
   useEffect(() => {
     if (!farmingTypeOptionsForRegion.find((ft) => ft.value === farmingType)) {
-      setFarmingType((farmingTypeOptionsForRegion[0]?.value as any) || "open_field");
+      setFarmingType(
+        (farmingTypeOptionsForRegion[0]?.value as any) || "open_field",
+      );
     }
   }, [regionId]);
 
@@ -425,6 +466,12 @@ const Heatmap: React.FC = () => {
                   ROI: {optimalSize.roi}% — Profit (per cycle):{" "}
                   {formatINR(optimalSize.profit)}
                 </span>
+              </div>
+            )}
+
+            {(aiLoading || aiInsights) && (
+              <div style={{ marginBottom: "1.25rem" }}>
+                <AIInsightsCard insights={aiInsights} isLoading={aiLoading} />
               </div>
             )}
 

@@ -6,9 +6,11 @@ import {
   compareScenarios,
   fetchMasterCategories,
   fetchMasterIrrigations,
+  generateComparisonInsights,
 } from "../services/api";
 import type { Crop, Region } from "../types";
 import { getSoilSuitabilityScore } from "../utils/soil";
+import AIInsightsCard from "../components/AIInsightsCard";
 import {
   BarChart,
   Bar,
@@ -150,13 +152,18 @@ const Compare: React.FC = () => {
   const [bestLoading, setBestLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState("");
+  const [aiInsights, setAiInsights] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
   const selectOverlayProps = {
     menuPortalTarget: document.body,
     menuPosition: "fixed" as const,
   };
 
   const normalizeIrrigationType = (raw: string): string => {
-    const cleaned = raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+    const cleaned = raw
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z]/g, "");
     if (cleaned.includes("tubewell") || cleaned.includes("tubewell"))
       return "tubewell";
     if (cleaned.includes("borewell")) return "borewell";
@@ -194,7 +201,9 @@ const Compare: React.FC = () => {
           .filter(
             (irr: any, idx: number, arr: any[]) =>
               idx ===
-              arr.findIndex((x: any) => x.normalizedType === irr.normalizedType),
+              arr.findIndex(
+                (x: any) => x.normalizedType === irr.normalizedType,
+              ),
           );
         setIrrigations(normalizedIrrs);
         if (normalizedIrrs.length > 0) {
@@ -222,6 +231,7 @@ const Compare: React.FC = () => {
     if (!cropId || !regionId) return;
     setError("");
     setLoading(true);
+    setAiInsights("");
     try {
       const res = await compareScenarios({
         cropId,
@@ -229,11 +239,56 @@ const Compare: React.FC = () => {
         scenarioA,
         scenarioB,
       });
-      setResult(res.data.data);
+      const data = res.data.data;
+      setResult(data);
+
+      const sCrop = crops.find((c) => c._id === cropId);
+      const sRegion = regions.find((r) => r._id === regionId);
+
+      if (sCrop && sRegion) {
+        fetchAiInsights(sCrop.name, sRegion.district, data);
+      }
     } catch {
       setError("Comparison fetch nahi ho paaya. Please retry.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAiInsights = async (
+    cName: string,
+    rName: string,
+    compData: any,
+  ) => {
+    setAiLoading(true);
+    try {
+      const sA = {
+        landSize: scenarioA.landSize,
+        irrigationType: formatIrrigationLabel(scenarioA.irrigationType),
+        profitAtMSP: compData.scenarioA.profit.profitAtMSP,
+        roiAtMSP: compData.scenarioA.profit.roiAtMSP,
+      };
+
+      const sB = {
+        landSize: scenarioB.landSize,
+        irrigationType: formatIrrigationLabel(scenarioB.irrigationType),
+        profitAtMSP: compData.scenarioB.profit.profitAtMSP,
+        roiAtMSP: compData.scenarioB.profit.roiAtMSP,
+      };
+
+      const { data } = await generateComparisonInsights({
+        cropName: cName,
+        regionName: rName,
+        scenarioA: sA,
+        scenarioB: sB,
+        winner: compData.winner,
+        profitDifference: compData.profitDifference,
+      });
+      setAiInsights(data.data.insights);
+    } catch (err) {
+      console.error("AI insights query failed:", err);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -257,17 +312,17 @@ const Compare: React.FC = () => {
 
   const selectedCrop = crops.find((c) => c._id === cropId);
   const selectedRegion = regions.find((r) => r._id === regionId);
-  const farmingTypeOptionsForRegion =
-    selectedRegion?.supportedFarmingTypes?.length
-      ? FARMING_TYPE_OPTIONS.filter((opt) =>
-          selectedRegion.supportedFarmingTypes?.includes(opt.value),
-        )
-      : FARMING_TYPE_OPTIONS;
+  const farmingTypeOptionsForRegion = selectedRegion?.supportedFarmingTypes
+    ?.length
+    ? FARMING_TYPE_OPTIONS.filter((opt) =>
+        selectedRegion.supportedFarmingTypes?.includes(opt.value),
+      )
+    : FARMING_TYPE_OPTIONS;
 
   useEffect(() => {
     const fallback =
-      (farmingTypeOptionsForRegion[0]?.value as ScenarioConfig["farmingType"]) ||
-      "open_field";
+      (farmingTypeOptionsForRegion[0]
+        ?.value as ScenarioConfig["farmingType"]) || "open_field";
     setScenarioA((prev) => ({
       ...prev,
       farmingType: farmingTypeOptionsForRegion.find(
@@ -517,7 +572,9 @@ const Compare: React.FC = () => {
               /100
             </span>
             <span>Rainfall: {selectedRegion.avgRainfallMM}mm</span>
-            <span>Irrigation availability: {selectedRegion.irrigationAvailability}</span>
+            <span>
+              Irrigation availability: {selectedRegion.irrigationAvailability}
+            </span>
           </div>
         )}
 
@@ -590,7 +647,8 @@ const Compare: React.FC = () => {
                 onChange={(s) =>
                   setScenarioA((p) => ({
                     ...p,
-                    farmingType: (s?.value || p.farmingType) as ScenarioConfig["farmingType"],
+                    farmingType: (s?.value ||
+                      p.farmingType) as ScenarioConfig["farmingType"],
                   }))
                 }
               />
@@ -666,7 +724,8 @@ const Compare: React.FC = () => {
                 onChange={(s) =>
                   setScenarioB((p) => ({
                     ...p,
-                    farmingType: (s?.value || p.farmingType) as ScenarioConfig["farmingType"],
+                    farmingType: (s?.value ||
+                      p.farmingType) as ScenarioConfig["farmingType"],
                   }))
                 }
               />
@@ -755,6 +814,12 @@ const Compare: React.FC = () => {
               </span>
             </div>
 
+            {(aiLoading || aiInsights) && (
+              <div style={{ marginBottom: "2rem" }}>
+                <AIInsightsCard insights={aiInsights} isLoading={aiLoading} />
+              </div>
+            )}
+
             <div className="compare-chart">
               <h3>📊 Side-by-Side Comparison</h3>
               <ResponsiveContainer width="100%" height={300}>
@@ -817,8 +882,12 @@ const Compare: React.FC = () => {
                   </tr>
                   <tr>
                     <td>Irrigation</td>
-                    <td>{formatIrrigationLabel(result.scenarioA.irrigationType)}</td>
-                    <td>{formatIrrigationLabel(result.scenarioB.irrigationType)}</td>
+                    <td>
+                      {formatIrrigationLabel(result.scenarioA.irrigationType)}
+                    </td>
+                    <td>
+                      {formatIrrigationLabel(result.scenarioB.irrigationType)}
+                    </td>
                     <td>—</td>
                   </tr>
                   <tr>
